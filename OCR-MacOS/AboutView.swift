@@ -1,0 +1,173 @@
+//
+//  AboutView.swift
+//  OCR-MacOS
+//
+
+import SwiftUI
+
+struct AboutView: View {
+    @State private var showEnvCopied = false
+
+    private let links: [(String, String, String)] = [
+        ("Github", "star.fill", "https://github.com/hiroi-sora/Umi-OCR"),
+        ("问题反馈", "exclamationmark.bubble", "https://github.com/hiroi-sora/Umi-OCR/issues"),
+        ("更新日志", "clock.arrow.circlepath", "https://github.com/hiroi-sora/Umi-OCR/releases"),
+    ]
+
+    var body: some View {
+        ZStack {
+            Color(NSColor.controlBackgroundColor)
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer().frame(height: 32)
+
+                    // ── 应用图标 & 名称 ──
+                    VStack(spacing: 10) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 22)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.accentColor.opacity(0.85), Color.accentColor],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 88, height: 88)
+                                .shadow(color: Color.accentColor.opacity(0.4), radius: 12, y: 4)
+                            Image(systemName: "text.viewfinder")
+                                .font(.system(size: 42, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+
+                        Text("OCR for macOS")
+                            .font(.system(size: 24, weight: .bold))
+
+                        Text("开源 · 免费 · 离线 OCR 工具")
+                            .font(.callout)
+                            .foregroundColor(.secondary)
+
+                        Text("版本 1.0.0 (Build 1)")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                    }
+
+                    Spacer().frame(height: 28)
+                    Divider().padding(.horizontal, 48)
+                    Spacer().frame(height: 20)
+
+                    // ── 链接 ──
+                    VStack(spacing: 8) {
+                        ForEach(links, id: \.0) { item in
+                            Link(destination: URL(string: item.2)!) {
+                                HStack {
+                                    Image(systemName: item.1)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.accentColor)
+                                        .frame(width: 22)
+                                    Text(item.0)
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .background(Color(NSColor.windowBackgroundColor))
+                                .cornerRadius(9)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 48)
+
+                    Spacer().frame(height: 20)
+                    Divider().padding(.horizontal, 48)
+                    Spacer().frame(height: 20)
+
+                    // ── 许可证 ──
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("许可证")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+
+                        Text("本软件基于 MIT License 开源协议发布。\nOCR 引擎基于 Apple Vision Framework。")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                            .lineSpacing(4)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 48)
+
+                    Spacer().frame(height: 20)
+                    Divider().padding(.horizontal, 48)
+                    Spacer().frame(height: 20)
+
+                    // ── 环境信息 ──
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("运行环境")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Button(showEnvCopied ? "已复制 ✓" : "复制") {
+                                copyEnvInfo()
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11))
+                            .foregroundColor(showEnvCopied ? .green : .accentColor)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            envRow("系统版本", ProcessInfo.processInfo.operatingSystemVersionString)
+                            envRow("App 版本", "1.0.0")
+                            envRow("架构", ProcessInfo.processInfo.processorCount > 0 ?
+                                   "\(ProcessInfo.processInfo.processorCount) 核" : "Unknown")
+                        }
+                        .padding(10)
+                        .background(Color(NSColor.windowBackgroundColor))
+                        .cornerRadius(8)
+                    }
+                    .padding(.horizontal, 48)
+
+                    Spacer().frame(height: 40)
+                }
+                .frame(maxWidth: 480)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func envRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .frame(width: 80, alignment: .leading)
+            Text(value)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(.primary)
+        }
+    }
+
+    private func copyEnvInfo() {
+        let info = """
+        App: OCR for macOS 1.0.0
+        OS: \(ProcessInfo.processInfo.operatingSystemVersionString)
+        CPU Cores: \(ProcessInfo.processInfo.processorCount)
+        """
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(info, forType: .string)
+        showEnvCopied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            showEnvCopied = false
+        }
+    }
+}
+
+#Preview {
+    AboutView()
+        .frame(width: 700, height: 520)
+}
