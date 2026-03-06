@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  OCR-MacOS
+//  MapleOCR
 //
 //  Created by 陈冠韬 on 2026/3/4.
 //

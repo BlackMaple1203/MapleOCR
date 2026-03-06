@@ -1,10 +1,11 @@
 //
 //  DocumentView.swift
-//  OCR-MacOS
+//  MapleOCR
 //
 
 import SwiftUI
 import UniformTypeIdentifiers
+import PDFKit
 
 // MARK: - 内容提取模式
 enum ExtractionMode: String, CaseIterable, Identifiable {
@@ -25,12 +26,7 @@ enum ExtractionMode: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - 保存目标
-enum SaveDestination: String, CaseIterable, Identifiable {
-    case sourceDir   = "文档原目录"
-    case specifiedDir = "指定目录"
-    var id: String { rawValue }
-}
+
 
 // MARK: - 任务状态
 enum TaskState {
@@ -126,12 +122,19 @@ struct DocumentView: View {
 
     // ── 提取 & 保存设置 ──────────────────────────
     @State private var extractionMode: ExtractionMode = .mixed
-    @State private var saveDestination: SaveDestination = .sourceDir
-    @State private var specifiedDir: String = ""
+    /// 用户通过 NSOpenPanel 选定的输出目录（security-scoped URL，可直接 startAccessing）
+    @State private var specifiedDirURL: URL? = nil
     @State private var fileNameFormat: String = "[OCR]_%name%range_%date"
     @State private var outputTypes: OutputFileTypes = OutputFileTypes()
     @State private var ignoreBlankPages: Bool = true
     @State private var recursiveSubfolders: Bool = false
+
+    // ── 后台任务 ────────────────────────────────────
+    /// 使用简单标志控制取消：每次启动自增版本号，任务内检查版本号是否一致
+    @State private var taskVersion: Int = 0
+
+    // ── Toast 通知 ──────────────────────────────────────────
+    @State private var toasts: [ToastItem] = []
 
     // ── 页范围 & 密码弹窗 ──────────────────────────
     @State private var showPageRangeSheet: Bool = false
@@ -173,6 +176,7 @@ struct DocumentView: View {
             .background(Color(NSColor.controlBackgroundColor))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .topTrailing) { toastOverlay }
         .sheet(isPresented: $showPageRangeSheet) {
             if let id = pageRangeTarget,
                let idx = documents.firstIndex(where: { $0.id == id }) {
@@ -384,6 +388,7 @@ struct DocumentView: View {
                                     ? Color(NSColor.controlBackgroundColor)
                                     : Color.clear
                             )
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -411,7 +416,7 @@ struct DocumentView: View {
                 SettingSection(title: "内容提取模式",
                                icon: "doc.text.image",
                                tooltip: "若一页文档既存在图片又存在文本时的处理方式") {
-                    VStack(spacing: 4) {
+                    HStack(spacing: 4) {
                         ForEach(ExtractionMode.allCases) { mode in
                             ExtractionModeRow(
                                 mode: mode,
@@ -426,29 +431,32 @@ struct DocumentView: View {
                 // ── 保存设置 ──────────────────────────────
                 SettingSection(title: "保存位置", icon: "folder") {
                     VStack(alignment: .leading, spacing: 8) {
-                        // 保存目标选择器
-                        Picker("", selection: $saveDestination) {
-                            ForEach(SaveDestination.allCases) { d in
-                                Text(d.rawValue).tag(d)
+                        // 输出目录路径
+                        HStack(spacing: 6) {
+                            // 只读展示已选路径（沙盒下手动输入路径无法获得写权限）
+                            Text(specifiedDirURL?.path ?? "未选择目录")
+                                .font(.system(size: 12))
+                                .foregroundColor(specifiedDirURL == nil
+                                    ? Color(NSColor.placeholderTextColor)
+                                    : Color(NSColor.labelColor))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                                .background(Color(NSColor.textBackgroundColor))
+                                .cornerRadius(5)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .stroke(Color(NSColor.separatorColor), lineWidth: 0.5)
+                                )
+                            Button {
+                                chooseOutputDir()
+                            } label: {
+                                Image(systemName: "folder.badge.plus")
                             }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-
-                        // 指定目录路径
-                        if saveDestination == .specifiedDir {
-                            HStack(spacing: 6) {
-                                TextField("选择输出目录…", text: $specifiedDir)
-                                    .textFieldStyle(.roundedBorder)
-                                    .font(.system(size: 12))
-                                Button {
-                                    chooseOutputDir()
-                                } label: {
-                                    Image(systemName: "folder.badge.plus")
-                                }
-                                .buttonStyle(.bordered)
-                                .help("浏览目录")
-                            }
+                            .buttonStyle(.bordered)
+                            .help("选择输出目录")
                         }
 
                         // 文件名格式
@@ -525,7 +533,7 @@ struct DocumentView: View {
                         ToggleRow(
                             label: "忽略空白页",
                             description: "跳过没有文字或识别失败的页面",
-                            icon: "doc.badge.minus",
+                            icon: "minus.circle",
                             isOn: $ignoreBlankPages
                         )
                         ToggleRow(
@@ -625,8 +633,9 @@ struct DocumentView: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.message = "选择 OCR 结果保存目录"
+        panel.canCreateDirectories = true
         if panel.runModal() == .OK, let url = panel.url {
-            specifiedDir = url.path
+            specifiedDirURL = url
         }
     }
 
@@ -634,10 +643,13 @@ struct DocumentView: View {
         let existing = Set(documents.map(\.url))
         for url in urls where !existing.contains(url) {
             var item = DocumentItem(url: url)
-            // PDF：预设页数为 1（实际值需 PDFKit 读取，此处为 UI 占位）
-            if item.isPDF {
-                item.pageCount = 10  // 占位，实际应通过 PDFDocument 读取
-                item.rangeEnd  = 10
+            // PDF：通过 PDFKit 读取真实页数
+            if item.isPDF, let pdf = PDFDocument(url: url) {
+                let count   = pdf.pageCount
+                item.pageCount = count
+                item.rangeEnd  = count
+                // 检测加密
+                item.isEncrypted = pdf.isEncrypted && !pdf.isLocked == false
             }
             documents.append(item)
         }
@@ -671,16 +683,35 @@ struct DocumentView: View {
         return handled
     }
 
-    // 任务控制（UI 逻辑占位）
+    // MARK: - 任务控制
+
     private func startTask() {
         guard !documents.isEmpty else { return }
-        totalPages = documents.reduce(0) { $0 + ($1.rangeEnd - $1.rangeStart + 1) }
+        guard let outputDirURL = specifiedDirURL else {
+            showToast("请先选择输出目录", isSuccess: false)
+            return
+        }
+
+        totalPages     = documents.reduce(0) { $0 + ($1.rangeEnd - $1.rangeStart + 1) }
         processedPages = 0
-        taskState = .running
-        // 将所有文档标记为排队
+        ocrResult      = ""
+        taskState      = .running
+        rightTab       = 1
+        taskVersion   += 1
         for i in documents.indices { documents[i].state = .queued }
-        // 切换到记录 tab
-        rightTab = 1
+
+        let version      = taskVersion
+        let mode         = extractionMode
+        let docs         = documents          // 值类型快照
+        let saveSettings = SaveSettings(
+            outputDirURL:   outputDirURL,
+            fileNameFormat: fileNameFormat,
+            outputTypes:    outputTypes
+        )
+
+        Task.detached(priority: .userInitiated) {
+            await self.runPipeline(docs: docs, mode: mode, version: version, saveSettings: saveSettings)
+        }
     }
 
     private func pauseTask() {
@@ -692,17 +723,191 @@ struct DocumentView: View {
     }
 
     private func stopTask() {
-        taskState = .stop
-        // 清除未执行文档的排队状态
+        taskVersion += 1          // 使旧 Task 检查到版本不一致后退出
+        taskState   = .stop
         for i in documents.indices {
-            if case .queued = documents[i].state { documents[i].state = .idle }
+            if case .queued    = documents[i].state { documents[i].state = .idle }
             if case .processing = documents[i].state { documents[i].state = .idle }
+        }
+    }
+
+    // MARK: - OCR 流水线
+
+    /// 顺序处理每个文档的每一页，在主线程更新 UI 状态。
+    private func runPipeline(
+        docs: [DocumentItem],
+        mode: ExtractionMode,
+        version: Int,
+        saveSettings: SaveSettings
+    ) async {
+        for doc in docs {
+            // ── 检查取消 / 暂停 ──────────────────────────────
+            guard await shouldContinue(version: version) else { return }
+
+            // 打开 PDF（图片文件走单独分支）
+            let isPDF = doc.isPDF
+            var pdfDoc: PDFDocument?
+            if isPDF {
+                pdfDoc = PDFDocument(url: doc.url)
+                if pdfDoc == nil {
+                    await markDoc(id: doc.id, state: .failed("无法打开"))
+                    continue
+                }
+                // 密码解锁
+                if let pd = pdfDoc, pd.isEncrypted {
+                    let ok = pd.unlock(withPassword: doc.password)
+                    if !ok {
+                        await markDoc(id: doc.id, state: .failed("密码错误"))
+                        continue
+                    }
+                }
+            }
+
+            // 计算本文档页列表（1-based → 0-based）
+            let pageList: [Int] = isPDF
+                ? Array((doc.rangeStart - 1) ..< doc.rangeEnd)
+                : [0]   // 图片视为单页
+            let pageTotal = pageList.count
+
+            var docResult    = ""
+            // 累积每页识别结果，文档处理完后统一写文件
+            var pageResults: [(pageIndex: Int, blocks: [OCRTextBlock])] = []
+
+            for (doneCount, pno) in pageList.enumerated() {
+                // 检查取消 / 暂停
+                guard await shouldContinue(version: version) else { return }
+
+                // 更新文档行进度
+                await markDoc(id: doc.id, state: .processing(doneCount, pageTotal))
+
+                // 执行识别
+                do {
+                    var blocks: [OCRTextBlock]
+                    if isPDF, let pd = pdfDoc, let page = pd.page(at: pno) {
+                        blocks = try await DocumentOCREngine.processPage(page, mode: mode)
+                    } else {
+                        blocks = try await DocumentOCREngine.processImage(url: doc.url)
+                    }
+
+                    // 累积本页结果（供后续写文件用）
+                    pageResults.append((pageIndex: pno, blocks: blocks))
+
+                    // 组装本页文本
+                    let pageText = blocks.map(\.text).joined(separator: "\n")
+                    let pageHeader = isPDF ? "\n--- \(doc.name)  第 \(pno + 1) 页 ---\n" : "\n--- \(doc.name) ---\n"
+                    docResult += pageHeader + pageText
+
+                    // 追加到界面结果（主线程）
+                    let docName = doc.name
+                    await MainActor.run {
+                        if !self.ocrResult.isEmpty { self.ocrResult += "\n" }
+                        self.ocrResult += isPDF
+                            ? "\n--- \(docName)  第 \(pno + 1) 页 ---\n" + blocks.map(\.text).joined(separator: "\n")
+                            : "\n--- \(docName) ---\n" + blocks.map(\.text).joined(separator: "\n")
+                        self.processedPages += 1
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.ocrResult += "\n[\(doc.name) 第\(pno+1)页 OCR 失败: \(error.localizedDescription)]\n"
+                        self.processedPages += 1
+                    }
+                }
+            }
+
+            await markDoc(id: doc.id, state: .done)
+
+            // ── 写出文件 ──────────────────────────────────────────────
+            // 至少有一种输出格式被勾选，且有识别结果，才写文件
+            let hasOutput = saveSettings.outputTypes.pdfLayered
+                || saveSettings.outputTypes.pdfOneLayer
+                || saveSettings.outputTypes.txt
+                || saveSettings.outputTypes.txtPlain
+                || saveSettings.outputTypes.csv
+                || saveSettings.outputTypes.jsonl
+
+            if hasOutput, !pageResults.isEmpty {
+                let docSnapshot = doc
+                let resultsSnapshot = pageResults
+                do {
+                    try DocumentOutputWriter.writeOutputs(
+                        sourceURL:   docSnapshot.url,
+                        docItem:     docSnapshot,
+                        pageResults: resultsSnapshot,
+                        settings:    saveSettings
+                    )
+                    await MainActor.run {
+                        self.showToast("\(docSnapshot.name) 已保存", isSuccess: true)
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.showToast("写文件失败：\(error.localizedDescription)", isSuccess: false)
+                    }
+                }
+            }
+        }
+
+        // 所有文档处理完毕
+        await MainActor.run {
+            if self.taskVersion == version {
+                self.taskState = .stop
+            }
+        }
+    }
+
+    /// 等待暂停解除，并返回当前任务是否应继续（版本匹配 + 未停止）。
+    private func shouldContinue(version: Int) async -> Bool {
+        // 轮询等待暂停状态解除（暂停时休眠 0.2 s 后重试）
+        while true {
+            let (v, s) = await MainActor.run { (taskVersion, taskState) }
+            if v != version || s == .stop { return false }
+            if s == .running { return true }
+            // paused — 等待
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+    }
+
+    /// 在主线程更新文档的状态标签。
+    @MainActor
+    private func markDoc(id: UUID, state: DocState) {
+        if let idx = documents.firstIndex(where: { $0.id == id }) {
+            documents[idx].state = state
         }
     }
 
     private func copyResult() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(ocrResult, forType: .string)
+    }
+
+    // MARK: - Toast
+
+    @MainActor
+    private func showToast(_ message: String, isSuccess: Bool) {
+        let item = ToastItem(message: message, isSuccess: isSuccess)
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+            toasts.append(item)
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            withAnimation(.easeOut(duration: 0.35)) {
+                toasts.removeAll { $0.id == item.id }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var toastOverlay: some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            ForEach(toasts) { toast in
+                ToastBubble(toast: toast)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal:   .move(edge: .trailing).combined(with: .opacity)
+                    ))
+            }
+        }
+        .padding(.top, 14)
+        .padding(.trailing, 16)
     }
 }
 
@@ -1044,6 +1249,54 @@ struct PageRangeSheet: View {
             doc.rangeEnd = e
         }
         doc.password = password
+    }
+}
+
+// MARK: - Toast 数据模型
+
+private struct ToastItem: Identifiable {
+    let id = UUID()
+    let message: String
+    let isSuccess: Bool
+}
+
+// MARK: - Toast 气泡视图
+
+private struct ToastBubble: View {
+    let toast: ToastItem
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: toast.isSuccess
+                  ? "checkmark.circle.fill"
+                  : "xmark.circle.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(toast.isSuccess ? .green : .red)
+                .padding(.top, 1)
+
+            Text(toast.message)
+                .font(.system(size: 12.5))
+                .foregroundColor(.primary)
+                .lineLimit(4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 300, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.regularMaterial)
+                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(
+                    toast.isSuccess
+                        ? Color.green.opacity(0.25)
+                        : Color.red.opacity(0.25),
+                    lineWidth: 1
+                )
+        )
     }
 }
 

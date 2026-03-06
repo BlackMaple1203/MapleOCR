@@ -24,25 +24,25 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		EA89B3952F57D51A00B847C3 /* OCR-MacOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "OCR-MacOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		EA89B3A22F57D51B00B847C3 /* OCR-MacOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "OCR-MacOSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		EA89B3AC2F57D51B00B847C3 /* OCR-MacOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "OCR-MacOSUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		EA89B3952F57D51A00B847C3 /* MapleOCR.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MapleOCR.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EA89B3A22F57D51B00B847C3 /* MapleOCRTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MapleOCRTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EA89B3AC2F57D51B00B847C3 /* MapleOCRUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MapleOCRUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		EA89B3972F57D51A00B847C3 /* OCR-MacOS */ = {
+		EA89B3972F57D51A00B847C3 /* MapleOCR */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "OCR-MacOS";
+			path = MapleOCR;
 			sourceTree = "<group>";
 		};
-		EA89B3A52F57D51B00B847C3 /* OCR-MacOSTests */ = {
+		EA89B3A52F57D51B00B847C3 /* MapleOCRTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "OCR-MacOSTests";
+			path = MapleOCRTests;
 			sourceTree = "<group>";
 		};
-		EA89B3AF2F57D51B00B847C3 /* OCR-MacOSUITests */ = {
+		EA89B3AF2F57D51B00B847C3 /* MapleOCRUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "OCR-MacOSUITests";
+			path = MapleOCRUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -75,9 +75,9 @@
 		EA89B38C2F57D51A00B847C3 = {
 			isa = PBXGroup;
 			children = (
-				EA89B3972F57D51A00B847C3 /* OCR-MacOS */,
-				EA89B3A52F57D51B00B847C3 /* OCR-MacOSTests */,
-				EA89B3AF2F57D51B00B847C3 /* OCR-MacOSUITests */,
+				EA89B3972F57D51A00B847C3 /* MapleOCR */,
+				EA89B3A52F57D51B00B847C3 /* MapleOCRTests */,
+				EA89B3AF2F57D51B00B847C3 /* MapleOCRUITests */,
 				EA89B3962F57D51A00B847C3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -85,9 +85,9 @@
 		EA89B3962F57D51A00B847C3 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				EA89B3952F57D51A00B847C3 /* OCR-MacOS.app */,
-				EA89B3A22F57D51B00B847C3 /* OCR-MacOSTests.xctest */,
-				EA89B3AC2F57D51B00B847C3 /* OCR-MacOSUITests.xctest */,
+				EA89B3952F57D51A00B847C3 /* MapleOCR.app */,
+				EA89B3A22F57D51B00B847C3 /* MapleOCRTests.xctest */,
+				EA89B3AC2F57D51B00B847C3 /* MapleOCRUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,9 +95,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		EA89B3942F57D51A00B847C3 /* OCR-MacOS */ = {
+		EA89B3942F57D51A00B847C3 /* MapleOCR */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EA89B3B62F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "OCR-MacOS" */;
+			buildConfigurationList = EA89B3B62F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "MapleOCR" */;
 			buildPhases = (
 				EA89B3912F57D51A00B847C3 /* Sources */,
 				EA89B3922F57D51A00B847C3 /* Frameworks */,
@@ -108,18 +108,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				EA89B3972F57D51A00B847C3 /* OCR-MacOS */,
+				EA89B3972F57D51A00B847C3 /* MapleOCR */,
 			);
-			name = "OCR-MacOS";
+			name = MapleOCR;
 			packageProductDependencies = (
 			);
 			productName = "OCR-MacOS";
-			productReference = EA89B3952F57D51A00B847C3 /* OCR-MacOS.app */;
+			productReference = EA89B3952F57D51A00B847C3 /* MapleOCR.app */;
 			productType = "com.apple.product-type.application";
 		};
-		EA89B3A12F57D51B00B847C3 /* OCR-MacOSTests */ = {
+		EA89B3A12F57D51B00B847C3 /* MapleOCRTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EA89B3B92F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "OCR-MacOSTests" */;
+			buildConfigurationList = EA89B3B92F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "MapleOCRTests" */;
 			buildPhases = (
 				EA89B39E2F57D51B00B847C3 /* Sources */,
 				EA89B39F2F57D51B00B847C3 /* Frameworks */,
@@ -131,18 +131,18 @@
 				EA89B3A42F57D51B00B847C3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				EA89B3A52F57D51B00B847C3 /* OCR-MacOSTests */,
+				EA89B3A52F57D51B00B847C3 /* MapleOCRTests */,
 			);
-			name = "OCR-MacOSTests";
+			name = MapleOCRTests;
 			packageProductDependencies = (
 			);
 			productName = "OCR-MacOSTests";
-			productReference = EA89B3A22F57D51B00B847C3 /* OCR-MacOSTests.xctest */;
+			productReference = EA89B3A22F57D51B00B847C3 /* MapleOCRTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		EA89B3AB2F57D51B00B847C3 /* OCR-MacOSUITests */ = {
+		EA89B3AB2F57D51B00B847C3 /* MapleOCRUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = EA89B3BC2F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "OCR-MacOSUITests" */;
+			buildConfigurationList = EA89B3BC2F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "MapleOCRUITests" */;
 			buildPhases = (
 				EA89B3A82F57D51B00B847C3 /* Sources */,
 				EA89B3A92F57D51B00B847C3 /* Frameworks */,
@@ -154,13 +154,13 @@
 				EA89B3AE2F57D51B00B847C3 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				EA89B3AF2F57D51B00B847C3 /* OCR-MacOSUITests */,
+				EA89B3AF2F57D51B00B847C3 /* MapleOCRUITests */,
 			);
-			name = "OCR-MacOSUITests";
+			name = MapleOCRUITests;
 			packageProductDependencies = (
 			);
 			productName = "OCR-MacOSUITests";
-			productReference = EA89B3AC2F57D51B00B847C3 /* OCR-MacOSUITests.xctest */;
+			productReference = EA89B3AC2F57D51B00B847C3 /* MapleOCRUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -186,7 +186,7 @@
 					};
 				};
 			};
-			buildConfigurationList = EA89B3902F57D51A00B847C3 /* Build configuration list for PBXProject "OCR-MacOS" */;
+			buildConfigurationList = EA89B3902F57D51A00B847C3 /* Build configuration list for PBXProject "MapleOCR" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -200,9 +200,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				EA89B3942F57D51A00B847C3 /* OCR-MacOS */,
-				EA89B3A12F57D51B00B847C3 /* OCR-MacOSTests */,
-				EA89B3AB2F57D51B00B847C3 /* OCR-MacOSUITests */,
+				EA89B3942F57D51A00B847C3 /* MapleOCR */,
+				EA89B3A12F57D51B00B847C3 /* MapleOCRTests */,
+				EA89B3AB2F57D51B00B847C3 /* MapleOCRUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -258,12 +258,12 @@
 /* Begin PBXTargetDependency section */
 		EA89B3A42F57D51B00B847C3 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = EA89B3942F57D51A00B847C3 /* OCR-MacOS */;
+			target = EA89B3942F57D51A00B847C3 /* MapleOCR */;
 			targetProxy = EA89B3A32F57D51B00B847C3 /* PBXContainerItemProxy */;
 		};
 		EA89B3AE2F57D51B00B847C3 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = EA89B3942F57D51A00B847C3 /* OCR-MacOS */;
+			target = EA89B3942F57D51A00B847C3 /* MapleOCR */;
 			targetProxy = EA89B3AD2F57D51B00B847C3 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -401,7 +401,7 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -433,7 +433,7 @@
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -470,7 +470,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OCR-MacOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OCR-MacOS";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MapleOCR.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MapleOCR";
 			};
 			name = Debug;
 		};
@@ -491,7 +491,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OCR-MacOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/OCR-MacOS";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MapleOCR.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MapleOCR";
 			};
 			name = Release;
 		};
@@ -536,7 +536,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		EA89B3902F57D51A00B847C3 /* Build configuration list for PBXProject "OCR-MacOS" */ = {
+		EA89B3902F57D51A00B847C3 /* Build configuration list for PBXProject "MapleOCR" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EA89B3B42F57D51B00B847C3 /* Debug */,
@@ -545,7 +545,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EA89B3B62F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "OCR-MacOS" */ = {
+		EA89B3B62F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "MapleOCR" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EA89B3B72F57D51B00B847C3 /* Debug */,
@@ -554,7 +554,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EA89B3B92F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "OCR-MacOSTests" */ = {
+		EA89B3B92F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "MapleOCRTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EA89B3BA2F57D51B00B847C3 /* Debug */,
@@ -563,7 +563,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EA89B3BC2F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "OCR-MacOSUITests" */ = {
+		EA89B3BC2F57D51B00B847C3 /* Build configuration list for PBXNativeTarget "MapleOCRUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EA89B3BD2F57D51B00B847C3 /* Debug */,

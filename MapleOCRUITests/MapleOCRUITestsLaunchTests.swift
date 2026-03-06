@@ -1,13 +1,13 @@
 //
 //  OCR_MacOSUITestsLaunchTests.swift
-//  OCR-MacOSUITests
+//  MapleOCRUITests
 //
 //  Created by 陈冠韬 on 2026/3/4.
 //
 
 import XCTest
 
-final class OCR_MacOSUITestsLaunchTests: XCTestCase {
+final class MapleOCRUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

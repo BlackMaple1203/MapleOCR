@@ -1,6 +1,6 @@
 //
 //  GlobalConfigsView.swift
-//  OCR-MacOS
+//  MapleOCR
 //
 
 import SwiftUI

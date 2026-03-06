@@ -1,6 +1,6 @@
 //
 //  QRCodeView.swift
-//  OCR-MacOS
+//  MapleOCR
 //
 
 import SwiftUI

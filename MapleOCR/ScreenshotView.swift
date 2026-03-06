@@ -1,6 +1,6 @@
 //
 //  ScreenshotView.swift
-//  OCR-MacOS
+//  MapleOCR
 //
 
 import SwiftUI
