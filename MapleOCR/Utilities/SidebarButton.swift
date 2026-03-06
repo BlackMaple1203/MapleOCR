@@ -5,7 +5,6 @@
 
 import SwiftUI
 
-// MARK: - AlDente 风格侧边栏按钮（图标在上，文字在下，橙色药丸高亮）
 struct SidebarButton: View {
     let item: SidebarItem
     let isSelected: Bool
