@@ -24,30 +24,18 @@ struct AboutView: View {
 
                     // ── 应用图标 & 名称 ──
                     VStack(spacing: 10) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 22)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color.accentColor.opacity(0.85), Color.accentColor],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 88, height: 88)
-                                .shadow(color: Color.accentColor.opacity(0.4), radius: 12, y: 4)
-                            Image(systemName: "text.viewfinder")
-                                .font(.system(size: 42, weight: .medium))
-                                .foregroundColor(.white)
-                        }
+                        Image("AppLogo")
+                            .resizable()
+                            .frame(width: 100, height: 100)
 
-                        Text("OCR for macOS")
+                        Text("MapleOCR")
                             .font(.system(size: 24, weight: .bold))
 
                         Text("开源 · 免费 · 离线 OCR 工具")
                             .font(.callout)
                             .foregroundColor(.secondary)
 
-                        Text("版本 1.0.0 (Build 1)")
+                        Text("版本 1.0.0")
                             .font(.system(size: 12))
                             .foregroundColor(Color(NSColor.tertiaryLabelColor))
                     }
@@ -107,7 +95,7 @@ struct AboutView: View {
                     // ── 环境信息 ──
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("运行环境")
+                            Text("当前运行环境")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(.secondary)
                             Spacer()
@@ -121,11 +109,12 @@ struct AboutView: View {
 
                         VStack(alignment: .leading, spacing: 4) {
                             envRow("系统版本", ProcessInfo.processInfo.operatingSystemVersionString)
-                            envRow("App 版本", "1.0.0")
                             envRow("架构", ProcessInfo.processInfo.processorCount > 0 ?
                                    "\(ProcessInfo.processInfo.processorCount) 核" : "Unknown")
+                            envRow("App 版本", "1.0.0")
                         }
-                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
                         .background(Color(NSColor.windowBackgroundColor))
                         .cornerRadius(8)
                     }
@@ -154,7 +143,7 @@ struct AboutView: View {
 
     private func copyEnvInfo() {
         let info = """
-        App: OCR for macOS 1.0.0
+        App: MapleOCR 1.0.0
         OS: \(ProcessInfo.processInfo.operatingSystemVersionString)
         CPU Cores: \(ProcessInfo.processInfo.processorCount)
         """

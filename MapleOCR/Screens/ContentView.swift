@@ -66,21 +66,10 @@ struct ContentView: View {
                     Color.clear.frame(height: 52)
 
                     // 应用图标
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.ocr_orange, Color.ocr_orange.opacity(0.75)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 40, height: 40)
-                            .shadow(color: Color.ocr_orange.opacity(0.5), radius: 6, y: 2)
-                        Image(systemName: "text.viewfinder")
-                            .font(.system(size: 19, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
+                    Image("AppLogo")
+                        .resizable()
+                        .frame(width: 40, height: 40)
+
                     .padding(.bottom, 20)
 
                     // 功能导航

@@ -58,12 +58,12 @@ enum DocumentOCREngine {
     /// 渲染图像时短边最小像素数（过小会降低 Vision 识别准确率）
     static let minRenderEdge: CGFloat = 1080
 
-    /// 处理单个 `PDFPage`，返回按阅读顺序排列的文本块列表。
+    /// 处理单个 `PDFPage`，返回按阅读顺序排列的文本块列表及页面坐标系范围。
     /// 可安全在非主线程调用（Vision OCR 本身是同步调用，包装在 async 方法里）。
     static func processPage(
         _ pdfPage: PDFPage,
         mode: ExtractionMode
-    ) async throws -> [OCRTextBlock] {
+    ) async throws -> (blocks: [OCRTextBlock], pageRect: CGRect) {
 
         let pageRect = pdfPage.bounds(for: .mediaBox)
 
@@ -75,7 +75,7 @@ enum DocumentOCREngine {
 
         // 纯文本模式直接返回
         if mode == .textOnly {
-            return readingOrder(native)
+            return (blocks: readingOrder(native), pageRect: pageRect)
         }
 
         // ── Step 2: 渲染页面为图像 ────────────────────────────────────────
@@ -93,19 +93,19 @@ enum DocumentOCREngine {
 
         // 整页强制 OCR
         if mode == .fullPage {
-            return readingOrder(vision)
+            return (blocks: readingOrder(vision), pageRect: pageRect)
         }
 
         // 仅 OCR 图片（不含原生文字）
         if mode == .imageOnly {
-            return readingOrder(vision)
+            return (blocks: readingOrder(vision), pageRect: pageRect)
         }
 
         // ── Step 4 & 5: 混合模式 —— 过滤重叠，合并排序 ───────────────────
         let filtered = vision.filter { vb in
             !native.contains { nb in iou(vb.rect, nb.rect) > overlapIoUThreshold }
         }
-        return readingOrder(native + filtered)
+        return (blocks: readingOrder(native + filtered), pageRect: pageRect)
     }
 
     // MARK: - 处理单张图片文件
@@ -113,7 +113,7 @@ enum DocumentOCREngine {
     /// 直接对一张图片运行 Vision OCR。
     static func processImage(
         url: URL
-    ) async throws -> [OCRTextBlock] {
+    ) async throws -> (blocks: [OCRTextBlock], pageRect: CGRect) {
         guard
             let nsImg = NSImage(contentsOf: url),
             let cgImage = nsImg.cgImage(forProposedRect: nil, context: nil, hints: nil)
@@ -125,7 +125,7 @@ enum DocumentOCREngine {
         let h = CGFloat(cgImage.height)
         let pageRect = CGRect(x: 0, y: 0, width: w, height: h)
         let blocks = try await runVision(on: cgImage, pageRect: pageRect)
-        return readingOrder(blocks)
+        return (blocks: readingOrder(blocks), pageRect: pageRect)
     }
 
     // MARK: - 提取 PDFKit 原生文字
@@ -232,10 +232,13 @@ enum DocumentOCREngine {
 
     /// 按阅读顺序（上→下、左→右）对文本块排序。
     /// PDF 坐标系：Y 值越大越靠上，因此 midY 较大的块排在前面。
+    /// 同行容忍度动态计算（与 Umi-OCR 保持一致）：取两块平均高度的 50%，
+    /// 且至少为 4pt，避免字号极小时过度合并。
     private static func readingOrder(_ blocks: [OCRTextBlock]) -> [OCRTextBlock] {
         blocks.sorted {
-            // 同行容忍度：4pt；超出则认为是不同行
-            if abs($0.rect.midY - $1.rect.midY) > 4 {
+            let avgH = ($0.rect.height + $1.rect.height) * 0.5
+            let tolerance = max(4.0, avgH * 0.5)
+            if abs($0.rect.midY - $1.rect.midY) > tolerance {
                 return $0.rect.midY > $1.rect.midY   // Y 大 → 靠上 → 排前
             }
             return $0.rect.minX < $1.rect.minX       // 同行：X 小 → 靠左 → 排前

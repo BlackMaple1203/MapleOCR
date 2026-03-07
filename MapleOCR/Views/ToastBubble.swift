@@ -1,9 +1,48 @@
+import Combine
 import SwiftUI
 
 struct ToastItem: Identifiable {
     let id = UUID()
     let message: String
     let isSuccess: Bool
+}
+
+// MARK: - Toast 管理器
+
+@MainActor
+final class ToastManager: ObservableObject {
+    @Published var toasts: [ToastItem] = []
+
+    func show(_ message: String, isSuccess: Bool) {
+        let item = ToastItem(message: message, isSuccess: isSuccess)
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+            toasts.append(item)
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            withAnimation(.easeOut(duration: 0.35)) {
+                self.toasts.removeAll { $0.id == item.id }
+            }
+        }
+    }
+}
+
+struct ToastOverlay: View {
+    @EnvironmentObject private var toastManager: ToastManager
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            ForEach(toastManager.toasts) { toast in
+                ToastBubble(toast: toast)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal:   .move(edge: .trailing).combined(with: .opacity)
+                    ))
+            }
+        }
+        .padding(.top, 14)
+        .padding(.trailing, 16)
+    }
 }
 
 struct ToastBubble: View {

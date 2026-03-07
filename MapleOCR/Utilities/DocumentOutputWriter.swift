@@ -1,11 +1,3 @@
-//
-//  DocumentOutputWriter.swift
-//  MapleOCR
-//
-//  将 OCR 识别结果写入各种输出格式。
-//  当前已实现：layered.pdf（双层可搜索 PDF：保留原图 + 透明文字层）
-//
-
 import Foundation
 import CoreGraphics
 import CoreText
@@ -54,7 +46,7 @@ enum DocumentOutputWriter {
     static func writeOutputs(
         sourceURL: URL,
         docItem: DocumentItem,
-        pageResults: [(pageIndex: Int, blocks: [OCRTextBlock])],
+        pageResults: [(pageIndex: Int, pageRect: CGRect, blocks: [OCRTextBlock])],
         settings: SaveSettings
     ) throws {
         guard !pageResults.isEmpty else { return }
@@ -88,7 +80,7 @@ enum DocumentOutputWriter {
             let outURL = outputDir.appendingPathComponent(baseName + ".layered.pdf")
             try writeLayeredPDF(
                 sourceURL: sourceURL,
-                pageResults: pageResults,
+                pageResults: pageResults.map { (pageIndex: $0.pageIndex, blocks: $0.blocks) },
                 outputURL: outURL
             )
         }
@@ -97,10 +89,13 @@ enum DocumentOutputWriter {
             // TODO: 单层纯文本 PDF（仅文字，无图片）
         }
 
+        // 以下输出函数不需要 pageRect，提取简化版
+        let flatResults = pageResults.map { (pageIndex: $0.pageIndex, blocks: $0.blocks) }
+
         if settings.outputTypes.txt {
             let outURL = outputDir.appendingPathComponent(baseName + ".txt")
             try writeTXT(
-                pageResults: pageResults,
+                pageResults: flatResults,
                 sourceName: sourceURL.lastPathComponent,
                 outputURL: outURL,
                 plain: false
@@ -110,7 +105,7 @@ enum DocumentOutputWriter {
         if settings.outputTypes.txtPlain {
             let outURL = outputDir.appendingPathComponent(baseName + ".p.txt")
             try writeTXT(
-                pageResults: pageResults,
+                pageResults: flatResults,
                 sourceName: sourceURL.lastPathComponent,
                 outputURL: outURL,
                 plain: true
@@ -119,7 +114,7 @@ enum DocumentOutputWriter {
 
         if settings.outputTypes.csv {
             let outURL = outputDir.appendingPathComponent(baseName + ".csv")
-            try writeCSV(pageResults: pageResults, sourceName: sourceURL.lastPathComponent, outputURL: outURL)
+            try writeCSV(pageResults: flatResults, sourceName: sourceURL.lastPathComponent, outputURL: outURL)
         }
 
         if settings.outputTypes.jsonl {
@@ -164,7 +159,6 @@ enum DocumentOutputWriter {
             throw DocumentOutputError.cannotCreatePDFContext
         }
 
-        // 按页码顺序处理
         let sorted = pageResults.sorted { $0.pageIndex < $1.pageIndex }
 
         for (pageIndex, blocks) in sorted {
@@ -214,8 +208,8 @@ enum DocumentOutputWriter {
         ctx.setTextDrawingMode(.invisible)
 
         for block in blocks {
-            // 字号：取包围盒高度的 75%，最小 6pt（不可见层字号只影响文字流而非显示）
-            let fontSize = max(6.0, block.rect.height * 0.75)
+            // 字号：Umi-OCR 策略——以行高为初值，双向逼近，使文字宽度恰好填满包围盒宽度
+            let fontSize = calculateFontSize(text: block.text, w: block.rect.width, h: block.rect.height)
 
             // 使用系统字体以正确处理中文、英文等多语言字符
             let nsFont = NSFont.systemFont(ofSize: fontSize)
@@ -233,6 +227,50 @@ enum DocumentOutputWriter {
         }
 
         ctx.restoreGState()
+    }
+
+    /// 计算字号：以行高为初值，双向逼近，使文字宽度恰好填满包围盒宽度。
+    /// 对应 Umi-OCR 的 `_calculateFontSize` 策略：
+    ///   1. 若 h > w（竖排），交换宽高转横排计算
+    ///   2. 粗调 -1：减小字号直到文字宽度 ≤ 盒宽
+    ///   3. 粗调 +1：增大字号直到文字宽度 > 盒宽
+    ///   4. 精调 -0.1：减小字号直到文字宽度 ≤ 盒宽，精度 0.1pt
+    private static func calculateFontSize(text: String, w: CGFloat, h: CGFloat) -> CGFloat {
+        guard !text.isEmpty else { return max(h, 5.0) }
+
+        var boxW = w
+        var boxH = h
+        if boxH > boxW { // 竖排文字：交换宽高，转为横排计算
+            swap(&boxW, &boxH)
+        }
+
+        let minSize: CGFloat = 5.0
+        var fontSize = max(boxH.rounded(), minSize)
+
+        let getLen: (CGFloat) -> CGFloat = { size in
+            let font = NSFont.systemFont(ofSize: size)
+            let attrStr = NSAttributedString(string: text, attributes: [.font: font])
+            let line = CTLineCreateWithAttributedString(attrStr as CFAttributedString)
+            var ascent: CGFloat = 0
+            var descent: CGFloat = 0
+            var leading: CGFloat = 0
+            return CGFloat(CTLineGetTypographicBounds(line, &ascent, &descent, &leading))
+        }
+
+        // 粗调减小：逐步 -1，直到文字宽度 ≤ 包围盒宽
+        while getLen(fontSize) > boxW && fontSize >= minSize {
+            fontSize -= 1
+        }
+        // 粗调增大：逐步 +1，直到文字宽度 > 包围盒宽
+        while getLen(fontSize) < boxW {
+            fontSize += 1
+        }
+        // 精调减小：逐步 -0.1，将精度提升到 0.1pt
+        while getLen(fontSize) > boxW && fontSize >= minSize {
+            fontSize -= 0.1
+        }
+
+        return max(fontSize, minSize)
     }
 
     /// 为旋转页面补偿坐标变换（顺时针旋转角度）。
@@ -302,26 +340,32 @@ enum DocumentOutputWriter {
     // MARK: - JSONL 输出
 
     private static func writeJSONL(
-        pageResults: [(pageIndex: Int, blocks: [OCRTextBlock])],
+        pageResults: [(pageIndex: Int, pageRect: CGRect, blocks: [OCRTextBlock])],
         sourceName: String,
         outputURL: URL
     ) throws {
         var lines: [String] = []
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = []
 
-        for (pageIndex, blocks) in pageResults.sorted(by: { $0.pageIndex < $1.pageIndex }) {
+        for (pageIndex, pageRect, blocks) in pageResults.sorted(by: { $0.pageIndex < $1.pageIndex }) {
+            let pageH = pageRect.height
             for block in blocks {
+                let r = block.rect
+                // 将 PDF 坐标系（左下角原点，Y 向上）转换为图像坐标系（左上角原点，Y 向下）
+                // 与 Umi-OCR box 格式保持一致：
+                //   box[0] = 左上角   box[1] = 右上角
+                //   box[2] = 右下角   box[3] = 左下角
+                let topY    = pageH - r.maxY  // 上边的 image-y
+                let bottomY = pageH - r.minY  // 下边的 image-y
                 let obj: [String: Any] = [
                     "file":   sourceName,
                     "page":   pageIndex + 1,
                     "source": block.source == .native ? "text" : "ocr",
                     "text":   block.text,
                     "box":    [
-                        ["x": block.rect.minX, "y": block.rect.minY],
-                        ["x": block.rect.maxX, "y": block.rect.minY],
-                        ["x": block.rect.maxX, "y": block.rect.maxY],
-                        ["x": block.rect.minX, "y": block.rect.maxY],
+                        [r.minX, topY],    // 左上
+                        [r.maxX, topY],    // 右上
+                        [r.maxX, bottomY], // 右下
+                        [r.minX, bottomY], // 左下
                     ]
                 ]
                 if let data = try? JSONSerialization.data(withJSONObject: obj),

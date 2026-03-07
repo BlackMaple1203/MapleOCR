@@ -14,6 +14,6 @@ struct MapleOCRApp: App {
             ContentView()
         }
         .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 1500, height: 700)
+        .defaultSize(width: 1250, height: 900)
     }
 }

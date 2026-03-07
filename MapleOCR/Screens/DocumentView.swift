@@ -105,6 +105,7 @@ struct DocumentView: View {
     @State private var documents: [DocumentItem] = []
     @State private var selectedID: UUID?
     @State private var isDraggingOver: Bool = false
+    @State private var isHoveringDropZone: Bool = false
 
     // 任务控制
     @State private var taskState: TaskState = .stop
@@ -128,8 +129,11 @@ struct DocumentView: View {
     /// 使用简单标志控制取消：每次启动自增版本号，任务内检查版本号是否一致
     @State private var taskVersion: Int = 0
 
+    // ── 时间统计 ─────────────────────────────────────
+    @State private var taskStartTime: Date? = nil
+
     // ── Toast 通知 ──────────────────────────────────────────
-    @State private var toasts: [ToastItem] = []
+    @StateObject private var toastManager = ToastManager()
 
     // ── 页范围 & 密码弹窗 ──────────────────────────
     @State private var showPageRangeSheet: Bool = false
@@ -148,7 +152,7 @@ struct DocumentView: View {
 
             // ── 左侧：文档列表 ──────────────────────────────
             leftPanel
-                .frame(width: 250)
+                .frame(width: 280)
                 .background(Color(NSColor.windowBackgroundColor))
                 .overlay(
                     Rectangle()
@@ -171,7 +175,8 @@ struct DocumentView: View {
             .background(Color(NSColor.controlBackgroundColor))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(alignment: .topTrailing) { toastOverlay }
+        .overlay(alignment: .topTrailing) { ToastOverlay() }
+        .environmentObject(toastManager)
         .sheet(isPresented: $showPageRangeSheet) {
             if let id = pageRangeTarget,
                let idx = documents.firstIndex(where: { $0.id == id }) {
@@ -185,32 +190,16 @@ struct DocumentView: View {
     // MARK: - 左侧面板
     private var leftPanel: some View {
         VStack(spacing: 0) {
-            // 标题栏
-            HStack {
-                Text("文档列表")
-                    .font(.headline)
-                Spacer()
-                Button {
-                    recursiveSubfolders.toggle()
-                } label: {
-                    Image(systemName: recursiveSubfolders
-                          ? "folder.badge.gearshape"
-                          : "folder")
-                        .font(.system(size: 13))
-                        .foregroundColor(recursiveSubfolders ? .accentColor : .secondary)
-                }
-                .buttonStyle(.plain)
-                .help(recursiveSubfolders ? "已开启：递归读取子文件夹" : "递归读取子文件夹（关闭）")
-            }
+            Text("文档列表")
+                .font(.headline)
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
 
             Divider()
 
             // 文档列表 / 空态
-            if documents.isEmpty {
-                dropZone
-            } else {
+            if documents.isEmpty { dropZone } 
+            else {
                 ScrollView {
                     LazyVStack(spacing: 2) {
                         ForEach(documents) { doc in
@@ -259,26 +248,39 @@ struct DocumentView: View {
             Spacer()
             Image(systemName: isDraggingOver ? "tray.and.arrow.down.fill" : "arrow.down.doc")
                 .font(.system(size: 38, weight: .light))
-                .foregroundColor(isDraggingOver ? .accentColor : .secondary)
+                .foregroundColor((isDraggingOver || isHoveringDropZone) ? .accentColor : .secondary)
                 .animation(.easeInOut(duration: 0.18), value: isDraggingOver)
-            Text("拖入文档或文件夹")
+                .animation(.easeInOut(duration: 0.18), value: isHoveringDropZone)
+            Text("拖入或上传文档")
                 .font(.callout)
                 .foregroundColor(.secondary)
             Text("支持 PDF · XPS · EPUB · MOBI")
                 .font(.caption)
                 .foregroundColor(Color(NSColor.tertiaryLabelColor))
-            Button("选择文件") { openFilePicker() }
-                .buttonStyle(.bordered)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill((isDraggingOver || isHoveringDropZone) ? Color.accentColor.opacity(0.07) : Color.clear)
+                .padding(12)
+                .animation(.easeInOut(duration: 0.18), value: isHoveringDropZone)
+                .animation(.easeInOut(duration: 0.18), value: isDraggingOver)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { openFilePicker() }
+        .onHover { inside in
+            isHoveringDropZone = inside
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .stroke(
-                    isDraggingOver ? Color.accentColor : Color(NSColor.separatorColor),
-                    style: StrokeStyle(lineWidth: isDraggingOver ? 2 : 1, dash: [6])
+                    (isDraggingOver || isHoveringDropZone) ? Color.accentColor : Color(NSColor.separatorColor),
+                    style: StrokeStyle(lineWidth: (isDraggingOver || isHoveringDropZone) ? 2 : 1, dash: [6])
                 )
                 .padding(12)
+                .animation(.easeInOut(duration: 0.18), value: isHoveringDropZone)
                 .animation(.easeInOut(duration: 0.18), value: isDraggingOver)
         )
     }
@@ -288,19 +290,36 @@ struct DocumentView: View {
         HStack(spacing: 10) {
             // 当前任务进度
             if taskState != .stop {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(taskState == .paused ? "已暂停" : "识别中…")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    ProgressView(value: Double(processedPages),
-                                 total: max(Double(totalPages), 1))
-                        .progressViewStyle(.linear)
-                        .frame(width: 120)
-                    Text("\(processedPages) / \(totalPages) 页")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(taskState == .paused ? "已暂停" : "识别中…")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        ProgressView(value: Double(processedPages),
+                                     total: max(Double(totalPages), 1))
+                            .progressViewStyle(.linear)
+                            .frame(width: 140)
+                        HStack(spacing: 4) {
+                            Text("\(processedPages) / \(totalPages) 页")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            if let start = taskStartTime, taskState == .running {
+                                let elapsed = Date().timeIntervalSince(start)
+                                Text("· \(formatDuration(elapsed))")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                if processedPages > 0 {
+                                    let remaining = elapsed / Double(processedPages)
+                                        * Double(totalPages - processedPages)
+                                    Text("· 剩余 ~\(formatDuration(remaining))")
+                                        .font(.caption2)
+                                        .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                                }
+                            }
+                        }
+                    }
+                    .padding(.leading, 4)
                 }
-                .padding(.leading, 4)
             } else {
                 Text(documents.isEmpty
                      ? "尚未添加文档"
@@ -599,11 +618,23 @@ struct DocumentView: View {
                 }
                 Spacer()
             } else {
-                ScrollView {
-                    TextEditor(text: $ocrResult)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(maxWidth: .infinity, minHeight: 300)
-                        .padding(10)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Text(ocrResult)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                        Color.clear
+                            .frame(height: 1)
+                            .id("ocrBottom")
+                    }
+                    .onChange(of: ocrResult) { _ in
+                        guard taskState != .stop else { return }
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            proxy.scrollTo("ocrBottom")
+                        }
+                    }
                 }
             }
         }
@@ -683,7 +714,7 @@ struct DocumentView: View {
     private func startTask() {
         guard !documents.isEmpty else { return }
         guard let outputDirURL = specifiedDirURL else {
-            showToast("请先选择输出目录", isSuccess: false)
+            toastManager.show("请先选择输出目录", isSuccess: false)
             return
         }
 
@@ -691,6 +722,7 @@ struct DocumentView: View {
         processedPages = 0
         ocrResult      = ""
         taskState      = .running
+        taskStartTime  = Date()
         rightTab       = 1
         taskVersion   += 1
         for i in documents.indices { documents[i].state = .queued }
@@ -718,8 +750,9 @@ struct DocumentView: View {
     }
 
     private func stopTask() {
-        taskVersion += 1          // 使旧 Task 检查到版本不一致后退出
-        taskState   = .stop
+        taskVersion   += 1          // 使旧 Task 检查到版本不一致后退出
+        taskState     = .stop
+        taskStartTime = nil
         for i in documents.indices {
             if case .queued    = documents[i].state { documents[i].state = .idle }
             if case .processing = documents[i].state { documents[i].state = .idle }
@@ -766,7 +799,7 @@ struct DocumentView: View {
 
             var docResult    = ""
             // 累积每页识别结果，文档处理完后统一写文件
-            var pageResults: [(pageIndex: Int, blocks: [OCRTextBlock])] = []
+            var pageResults: [(pageIndex: Int, pageRect: CGRect, blocks: [OCRTextBlock])] = []
 
             for (doneCount, pno) in pageList.enumerated() {
                 // 检查取消 / 暂停
@@ -777,22 +810,22 @@ struct DocumentView: View {
 
                 // 执行识别
                 do {
-                    var blocks: [OCRTextBlock]
+                    let (blocks, pageRect): ([OCRTextBlock], CGRect)
                     if isPDF, let pd = pdfDoc, let page = pd.page(at: pno) {
-                        blocks = try await DocumentOCREngine.processPage(page, mode: mode)
+                        (blocks, pageRect) = try await DocumentOCREngine.processPage(page, mode: mode)
                     } else {
-                        blocks = try await DocumentOCREngine.processImage(url: doc.url)
+                        (blocks, pageRect) = try await DocumentOCREngine.processImage(url: doc.url)
                     }
 
                     // 累积本页结果（供后续写文件用）
-                    pageResults.append((pageIndex: pno, blocks: blocks))
+                    pageResults.append((pageIndex: pno, pageRect: pageRect, blocks: blocks))
 
                     // 组装本页文本
                     let pageText = blocks.map(\.text).joined(separator: "\n")
                     let pageHeader = isPDF ? "\n--- \(doc.name)  第 \(pno + 1) 页 ---\n" : "\n--- \(doc.name) ---\n"
                     docResult += pageHeader + pageText
 
-                    // 追加到界面结果（主线程）
+                    // 追加到界面结果
                     let docName = doc.name
                     await MainActor.run {
                         if !self.ocrResult.isEmpty { self.ocrResult += "\n" }
@@ -831,11 +864,11 @@ struct DocumentView: View {
                         settings:    saveSettings
                     )
                     await MainActor.run {
-                        self.showToast("\(docSnapshot.name) 已保存", isSuccess: true)
+                        self.toastManager.show("\(docSnapshot.name) 已保存", isSuccess: true)
                     }
                 } catch {
                     await MainActor.run {
-                        self.showToast("写文件失败：\(error.localizedDescription)", isSuccess: false)
+                        self.toastManager.show("写文件失败：\(error.localizedDescription)", isSuccess: false)
                     }
                 }
             }
@@ -844,7 +877,8 @@ struct DocumentView: View {
         // 所有文档处理完毕
         await MainActor.run {
             if self.taskVersion == version {
-                self.taskState = .stop
+                self.taskState     = .stop
+                self.taskStartTime = nil
             }
         }
     }
@@ -861,6 +895,17 @@ struct DocumentView: View {
         }
     }
 
+    /// 将时间间隔格式化为人类可读字符串（s / m:ss / h:mm:ss）。
+    private func formatDuration(_ interval: TimeInterval) -> String {
+        let total = max(0, Int(interval))
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
+        if m > 0 { return String(format: "%d:%02d", m, s) }
+        return "\(s)s"
+    }
+
     /// 在主线程更新文档的状态标签。
     @MainActor
     private func markDoc(id: UUID, state: DocState) {
@@ -874,36 +919,6 @@ struct DocumentView: View {
         NSPasteboard.general.setString(ocrResult, forType: .string)
     }
 
-    // MARK: - Toast
-
-    @MainActor
-    private func showToast(_ message: String, isSuccess: Bool) {
-        let item = ToastItem(message: message, isSuccess: isSuccess)
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
-            toasts.append(item)
-        }
-        Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            withAnimation(.easeOut(duration: 0.35)) {
-                toasts.removeAll { $0.id == item.id }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var toastOverlay: some View {
-        VStack(alignment: .trailing, spacing: 10) {
-            ForEach(toasts) { toast in
-                ToastBubble(toast: toast)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal:   .move(edge: .trailing).combined(with: .opacity)
-                    ))
-            }
-        }
-        .padding(.top, 14)
-        .padding(.trailing, 16)
-    }
 }
 
 // MARK: - 设置分区标题

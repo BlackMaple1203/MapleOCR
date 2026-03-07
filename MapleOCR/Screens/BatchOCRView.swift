@@ -43,6 +43,7 @@ struct BatchOCRView: View {
     @State private var images: [BatchImageItem] = []
     @State private var selectedID: UUID?
     @State private var isDraggingOver = false
+    @State private var isHoveringDropZone = false
 
     @State private var isRunning = false
     @State private var progress: Double = 0
@@ -67,28 +68,16 @@ struct BatchOCRView: View {
             // ── 左侧：文件列表 ────────────────────────────
             VStack(spacing: 0) {
                 // 顶部工具栏
-                HStack {
-                    Text("文件列表")
-                        .font(.headline)
-                    Spacer()
-                    Button {
-                        openFilePicker()
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .buttonStyle(.plain)
-                    .help("添加图片")
-                }
+                Text("文件列表")
+                    .font(.headline)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
 
                 Divider()
 
                 // 文件列表 / 空态
-                if images.isEmpty {
-                    dropZone
-                } else {
+                if images.isEmpty { dropZone } 
+                else {
                     // 表头
                     HStack(spacing: 0) {
                         Text("文件名")
@@ -156,7 +145,7 @@ struct BatchOCRView: View {
                     .padding(10)
                 }
             }
-            .frame(width: 300)
+            .frame(width: 280)
             .background(Color(NSColor.windowBackgroundColor))
             .overlay(
                 Rectangle()
@@ -199,24 +188,37 @@ struct BatchOCRView: View {
             Spacer()
             Image(systemName: isDraggingOver ? "tray.and.arrow.down.fill" : "photo.stack")
                 .font(.system(size: 40, weight: .light))
-                .foregroundColor(isDraggingOver ? .accentColor : .secondary)
-                .animation(.easeInOut(duration: 0.2), value: isDraggingOver)
-            Text("拖入图片或点击添加")
+                .foregroundColor((isDraggingOver || isHoveringDropZone) ? .accentColor : .secondary)
+                .animation(.easeInOut(duration: 0.18), value: isDraggingOver)
+                .animation(.easeInOut(duration: 0.18), value: isHoveringDropZone)
+            Text("拖入或上传图片")
                 .font(.callout)
                 .foregroundColor(.secondary)
-            Button("选择图片") { openFilePicker() }
-                .buttonStyle(.bordered)
             Spacer()
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill((isDraggingOver || isHoveringDropZone) ? Color.accentColor.opacity(0.07) : Color.clear)
+                .padding(12)
+                .animation(.easeInOut(duration: 0.18), value: isHoveringDropZone)
+                .animation(.easeInOut(duration: 0.18), value: isDraggingOver)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { openFilePicker() }
+        .onHover { inside in
+            isHoveringDropZone = inside
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .stroke(
-                    isDraggingOver ? Color.accentColor : Color(NSColor.separatorColor),
-                    style: StrokeStyle(lineWidth: isDraggingOver ? 2 : 1, dash: [6])
+                    (isDraggingOver || isHoveringDropZone) ? Color.accentColor : Color(NSColor.separatorColor),
+                    style: StrokeStyle(lineWidth: (isDraggingOver || isHoveringDropZone) ? 2 : 1, dash: [6])
                 )
                 .padding(12)
-                .animation(.easeInOut(duration: 0.2), value: isDraggingOver)
+                .animation(.easeInOut(duration: 0.18), value: isHoveringDropZone)
+                .animation(.easeInOut(duration: 0.18), value: isDraggingOver)
         )
     }
 

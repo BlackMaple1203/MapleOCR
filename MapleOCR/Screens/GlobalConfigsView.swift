@@ -12,7 +12,6 @@ enum ConfigGroup: String, CaseIterable, Identifiable {
     case shortcut  = "快捷键"
     case output    = "输出设置"
     case notify    = "通知"
-    case advanced  = "高级"
 
     var id: String { rawValue }
 
@@ -23,7 +22,6 @@ enum ConfigGroup: String, CaseIterable, Identifiable {
         case .shortcut: return "command.square"
         case .output:   return "doc.text"
         case .notify:   return "bell"
-        case .advanced: return "gearshape.2"
         }
     }
 }
@@ -57,27 +55,6 @@ struct GlobalConfigsView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.bottom, 12)
-                }
-
-                Spacer()
-
-                Divider()
-
-                // 底部：导入/导出
-                HStack(spacing: 8) {
-                    Button("导入配置") {}
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Button("导出配置") {}
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                    Button("恢复默认") {}
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11))
-                        .foregroundColor(.red)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
@@ -131,7 +108,6 @@ struct GlobalConfigsView: View {
         case .shortcut: shortcutConfigSection
         case .output:   outputConfigSection
         case .notify:   notifyConfigSection
-        case .advanced: advancedConfigSection
         }
     }
 
@@ -154,12 +130,6 @@ struct GlobalConfigsView: View {
                     "快速", "均衡", "精准"
                 ])
             }
-
-            formSection("引擎信息") {
-                infoRow("当前引擎", value: ocrEngine)
-                infoRow("版本", value: "1.0.0")
-                infoRow("支持语言数", value: "100+")
-            }
         }
     }
 
@@ -179,13 +149,6 @@ struct GlobalConfigsView: View {
                 formPicker("语言", selection: $language, options: [
                     "简体中文", "繁體中文", "English", "日本語"
                 ])
-            }
-
-            formSection("窗口行为") {
-                formToggle("总在最前", icon: "pin", isOn: $alwaysOnTop)
-                formToggle("显示在 Dock", icon: "dock.rectangle", isOn: $showInDock)
-                formToggle("显示菜单栏图标", icon: "menubar.rectangle", isOn: $showInMenuBar)
-                formToggle("关闭时最小化到菜单栏", icon: "arrow.down.right.and.arrow.up.left", isOn: $hideOnClose)
             }
 
             formSection("启动") {
@@ -288,36 +251,6 @@ struct GlobalConfigsView: View {
                 formToggle("识别成功时通知", icon: "checkmark.circle", isOn: $notifyOnSuccess)
                 formToggle("无文字时通知", icon: "text.badge.minus", isOn: $notifyOnEmpty)
                 formToggle("识别失败时通知", icon: "exclamationmark.circle", isOn: $notifyOnError)
-            }
-        }
-    }
-
-    // MARK: 高级
-    @State private var gpuAccel = true
-    @State private var logLevel = "错误"
-    @State private var cacheSize = "100"
-    @State private var debugMode = false
-
-    private var advancedConfigSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            formSection("性能") {
-                formToggle("GPU 加速", icon: "memorychip", isOn: $gpuAccel)
-                formPicker("最大缓存（MB）", selection: $cacheSize, options: [
-                    "50", "100", "200", "500"
-                ])
-            }
-
-            formSection("日志") {
-                formPicker("日志级别", selection: $logLevel, options: [
-                    "调试", "信息", "警告", "错误"
-                ])
-                formToggle("调试模式", icon: "ant", isOn: $debugMode)
-
-                Button("打开日志目录") {}
-                    .buttonStyle(.bordered)
-                    .font(.system(size: 12))
-                    .padding(.horizontal, 24)
-                    .padding(.top, 6)
             }
         }
     }
