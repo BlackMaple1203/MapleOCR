@@ -114,7 +114,10 @@ struct DocumentView: View {
 
     // 右侧面板 Tab（0=设置, 1=记录）
     @State private var rightTab: Int = 0
-    @State private var ocrResult: String = ""
+    /// 每页识别结果行，用数组替代字符串追加，保证 O(1) append、避免 O(n²) 复制
+    @State private var resultLines: [String] = []
+    /// 预览时最多展示的最近页数（防止超长 Text 视图布局卡顿）
+    private let previewPageLimit = 20
 
     // ── 提取 & 保存设置 ──────────────────────────
     @State private var extractionMode: ExtractionMode = .mixed
@@ -578,7 +581,7 @@ struct DocumentView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 Spacer()
-                if !ocrResult.isEmpty {
+                if !resultLines.isEmpty {
                     Button {
                         copyResult()
                     } label: {
@@ -589,7 +592,7 @@ struct DocumentView: View {
                     .help("复制所有识别结果")
 
                     Button {
-                        ocrResult = ""
+                        resultLines = []
                     } label: {
                         Image(systemName: "trash")
                     }
@@ -603,7 +606,7 @@ struct DocumentView: View {
 
             Divider()
 
-            if ocrResult.isEmpty {
+            if resultLines.isEmpty {
                 Spacer()
                 VStack(spacing: 12) {
                     Image(systemName: "doc.text.magnifyingglass")
@@ -620,7 +623,9 @@ struct DocumentView: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        Text(ocrResult)
+                        // 只渲染最近 previewPageLimit 页，防止超长 Text 布局卡顿
+                        let preview = resultLines.suffix(previewPageLimit).joined(separator: "\n")
+                        Text(preview)
                             .font(.system(.body, design: .monospaced))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -629,7 +634,7 @@ struct DocumentView: View {
                             .frame(height: 1)
                             .id("ocrBottom")
                     }
-                    .onChange(of: ocrResult) { _ in
+                    .onChange(of: resultLines.count) { _ in
                         guard taskState != .stop else { return }
                         withAnimation(.easeOut(duration: 0.15)) {
                             proxy.scrollTo("ocrBottom")
@@ -685,13 +690,13 @@ struct DocumentView: View {
     private func remove(_ doc: DocumentItem) {
         documents.removeAll { $0.id == doc.id }
         if selectedID == doc.id { selectedID = documents.first?.id }
-        if documents.isEmpty { ocrResult = "" }
+        if documents.isEmpty { resultLines = [] }
     }
 
     private func clearAll() {
         documents.removeAll()
         selectedID = nil
-        ocrResult  = ""
+        resultLines = []
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
@@ -720,7 +725,7 @@ struct DocumentView: View {
 
         totalPages     = documents.reduce(0) { $0 + ($1.rangeEnd - $1.rangeStart + 1) }
         processedPages = 0
-        ocrResult      = ""
+        resultLines    = []
         taskState      = .running
         taskStartTime  = Date()
         rightTab       = 1
@@ -797,7 +802,6 @@ struct DocumentView: View {
                 : [0]   // 图片视为单页
             let pageTotal = pageList.count
 
-            var docResult    = ""
             // 累积每页识别结果，文档处理完后统一写文件
             var pageResults: [(pageIndex: Int, pageRect: CGRect, blocks: [OCRTextBlock])] = []
 
@@ -820,23 +824,18 @@ struct DocumentView: View {
                     // 累积本页结果（供后续写文件用）
                     pageResults.append((pageIndex: pno, pageRect: pageRect, blocks: blocks))
 
-                    // 组装本页文本
+                    // 组装本页文本并以 O(1) append 追加到界面结果数组
                     let pageText = blocks.map(\.text).joined(separator: "\n")
-                    let pageHeader = isPDF ? "\n--- \(doc.name)  第 \(pno + 1) 页 ---\n" : "\n--- \(doc.name) ---\n"
-                    docResult += pageHeader + pageText
-
-                    // 追加到界面结果
-                    let docName = doc.name
+                    let entry = isPDF
+                        ? "\n--- \(doc.name)  第 \(pno + 1) 页 ---\n" + pageText
+                        : "\n--- \(doc.name) ---\n" + pageText
                     await MainActor.run {
-                        if !self.ocrResult.isEmpty { self.ocrResult += "\n" }
-                        self.ocrResult += isPDF
-                            ? "\n--- \(docName)  第 \(pno + 1) 页 ---\n" + blocks.map(\.text).joined(separator: "\n")
-                            : "\n--- \(docName) ---\n" + blocks.map(\.text).joined(separator: "\n")
+                        self.resultLines.append(entry)
                         self.processedPages += 1
                     }
                 } catch {
                     await MainActor.run {
-                        self.ocrResult += "\n[\(doc.name) 第\(pno+1)页 OCR 失败: \(error.localizedDescription)]\n"
+                        self.resultLines.append("\n[\(doc.name) 第\(pno+1)页 OCR 失败: \(error.localizedDescription)]\n")
                         self.processedPages += 1
                     }
                 }
@@ -916,7 +915,7 @@ struct DocumentView: View {
 
     private func copyResult() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(ocrResult, forType: .string)
+        NSPasteboard.general.setString(resultLines.joined(separator: "\n"), forType: .string)
     }
 
 }
