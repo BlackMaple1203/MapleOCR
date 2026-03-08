@@ -623,7 +623,6 @@ struct DocumentView: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        // 只渲染最近 previewPageLimit 页，防止超长 Text 布局卡顿
                         let preview = resultLines.suffix(previewPageLimit).joined(separator: "\n")
                         Text(preview)
                             .font(.system(.body, design: .monospaced))

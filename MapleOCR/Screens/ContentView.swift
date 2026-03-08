@@ -117,19 +117,27 @@ struct ContentView: View {
                 Color(NSColor.controlBackgroundColor)
                     .ignoresSafeArea()
 
-                Group {
-                    switch selection {
-                    case .screenshot: ScreenshotView()
-                    case .batchOCR:   BatchOCRView()
-                    case .document:   DocumentView()
-                    case .qrcode:     QRCodeView()
-                    case .settings:   GlobalConfigsView()
-                    case .about:      AboutView()
+                // ScreenshotView 始终保持在视图树中，保留 OCR 记录等 @State
+                ScreenshotView()
+                    .opacity(selection == .screenshot ? 1 : 0)
+                    .allowsHitTesting(selection == .screenshot)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.top, 1)
+
+                if selection != .screenshot {
+                    Group {
+                        switch selection {
+                        case .batchOCR:   BatchOCRView()
+                        case .document:   DocumentView()
+                        case .qrcode:     QRCodeView()
+                        case .settings:   GlobalConfigsView()
+                        case .about:      AboutView()
+                        default:          EmptyView()
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.top, 1)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // 顶部为无标题栏留出安全区域
-                .padding(.top, 1)
             }
         }
         .frame(minWidth: 860, minHeight: 560)
