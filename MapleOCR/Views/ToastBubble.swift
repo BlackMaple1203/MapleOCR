@@ -11,6 +11,7 @@ struct ToastItem: Identifiable {
 
 @MainActor
 final class ToastManager: ObservableObject {
+    static let shared = ToastManager()
     @Published var toasts: [ToastItem] = []
 
     func show(_ message: String, isSuccess: Bool) {
@@ -80,5 +81,13 @@ struct ToastBubble: View {
                     lineWidth: 1
                 )
         )
+    }
+}
+
+// MARK: - Global Toast Helper
+
+func showToast(_ message: String, isSuccess: Bool) {
+    Task { @MainActor in
+        ToastManager.shared.show(message, isSuccess: isSuccess)
     }
 }

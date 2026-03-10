@@ -29,6 +29,7 @@ enum ConfigGroup: String, CaseIterable, Identifiable {
 // MARK: - 全局设置主视图
 struct GlobalConfigsView: View {
     @State private var selectedGroup: ConfigGroup = .ocr
+    @ObservedObject private var shortcutSettings = ShortcutSettings.shared
 
     var body: some View {
         HStack(spacing: 0) {
@@ -96,6 +97,10 @@ struct GlobalConfigsView: View {
             .background(Color(NSColor.controlBackgroundColor))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .topTrailing) {
+            ToastOverlay()
+                .environmentObject(ToastManager.shared)
+        }
     }
 
     // MARK: - 各分组内容
@@ -158,30 +163,52 @@ struct GlobalConfigsView: View {
     }
 
     // MARK: 快捷键
-    @State private var screenshotKey = "⌃ ⌥ C"
-    @State private var pasteKey = "⌃ ⌥ V"
-    @State private var repeatKey = "⌃ ⌥ R"
-    @State private var qrKey = "⌃ ⌥ Q"
 
     private var shortcutConfigSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            formSection("截图识别") {
-                shortcutFormRow("截图识别", binding: $screenshotKey)
-                shortcutFormRow("粘贴识别", binding: $pasteKey)
-                shortcutFormRow("重复上次截图", binding: $repeatKey)
+            formSection("全局快捷键") {
+                shortcutRecorderRow("打开文件/文件夹",
+                    combo: $shortcutSettings.openFile)
+                shortcutRecorderRow("开始截图识别",
+                    description: "触发截图框选并识别，同样适用于截图二维码扫描",
+                    combo: $shortcutSettings.startScreenshot)
             }
-
+            formSection("截图识别") {
+                shortcutRecorderRow("粘贴识别",
+                    description: "直接识别剪贴板中的图片内容，无需截图",
+                    combo: $shortcutSettings.pasteOCR)
+                shortcutRecorderRow("重复上次截图",
+                    description: "对上一次框选区域重新执行 OCR 识别",
+                    combo: $shortcutSettings.repeatScreenshot)
+                shortcutRecorderRow("捕获屏幕框选文字",
+                    description: "直接进入截图界面，识别结果复制到剪贴板，不弹出app窗口",
+                    combo: $shortcutSettings.silentScreenshot)
+            }
             formSection("二维码") {
-                shortcutFormRow("扫描二维码", binding: $qrKey)
+                shortcutRecorderRow("扫描二维码",
+                    description: "框选屏幕区域，扫描并解码其中的二维码内容",
+                    combo: $shortcutSettings.scanQR)
+            }
+            formSection("界面切换") {
+                shortcutRecorderRow("截图识别",
+                    combo: $shortcutSettings.navScreenshot)
+                shortcutRecorderRow("批量识别",
+                    combo: $shortcutSettings.navBatch)
+                shortcutRecorderRow("文档处理",
+                    combo: $shortcutSettings.navDocument)
+                shortcutRecorderRow("二维码",
+                    combo: $shortcutSettings.navQR)
+                fixedShortcutRow("全局设置",
+                    display: "⌘ ,")
+                fixedShortcutRow("关于",
+                    display: "⌘ I")
             }
 
             HStack {
                 Spacer()
                 Button("恢复默认快捷键") {
-                    screenshotKey = "⌃ ⌥ C"
-                    pasteKey = "⌃ ⌥ V"
-                    repeatKey = "⌃ ⌥ R"
-                    qrKey = "⌃ ⌥ Q"
+                    shortcutSettings.resetDefaults()
+                    showToast("快捷键已恢复默认", isSuccess: true)
                 }
                 .buttonStyle(.bordered)
             }
@@ -321,12 +348,63 @@ struct GlobalConfigsView: View {
         .overlay(Divider().padding(.leading, 14), alignment: .bottom)
     }
 
-    private func shortcutFormRow(_ label: String, binding: Binding<String>) -> some View {
-        HStack {
-            Text(label)
-                .font(.system(size: 13))
+    private func shortcutFormRow(_ label: String, description: String = "", binding: Binding<String>) -> some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 13))
+                if !description.isEmpty {
+                    Text(description)
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                }
+            }
             Spacer()
             Text(binding.wrappedValue)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(6)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .overlay(Divider().padding(.leading, 14), alignment: .bottom)
+    }
+
+    private func shortcutRecorderRow(_ label: String, description: String = "", combo: Binding<KeyCombo>) -> some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 13))
+                if !description.isEmpty {
+                    Text(description)
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                }
+            }
+            Spacer()
+            ShortcutRecorderButton(combo: combo)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .overlay(Divider().padding(.leading, 14), alignment: .bottom)
+    }
+
+    private func fixedShortcutRow(_ label: String, description: String = "", display: String) -> some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.system(size: 13))
+                if !description.isEmpty {
+                    Text(description)
+                        .font(.system(size: 10))
+                        .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                }
+            }
+            Spacer()
+            Text(display)
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 10)

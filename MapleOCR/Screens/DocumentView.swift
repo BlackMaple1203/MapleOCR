@@ -188,6 +188,9 @@ struct DocumentView: View {
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .triggerOpenFileDoc)) { _ in
+            openFilePicker()
+        }
     }
 
     // MARK: - 左侧面板
@@ -435,8 +438,9 @@ struct DocumentView: View {
                                tooltip: "若一页文档既存在图片又存在文本时的处理方式") {
                     HStack(spacing: 4) {
                         ForEach(ExtractionMode.allCases) { mode in
-                            ExtractionModeRow(
-                                mode: mode,
+                            SelectionRow(
+                                label: mode.rawValue,
+                                icon: mode.icon,
                                 isSelected: extractionMode == mode
                             ) { extractionMode = mode }
                         }
@@ -953,50 +957,7 @@ private struct SettingDivider: View {
     }
 }
 
-// MARK: - 提取模式行
-private struct ExtractionModeRow: View {
-    let mode: ExtractionMode
-    let isSelected: Bool
-    let onSelect: () -> Void
-    @State private var isHovered = false
 
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? Color.accentColor : Color(NSColor.separatorColor).opacity(0.5))
-                        .frame(width: 18, height: 18)
-                    if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                }
-                Image(systemName: mode.icon)
-                    .font(.system(size: 13))
-                    .foregroundColor(isSelected ? .accentColor : .secondary)
-                    .frame(width: 18)
-                Text(mode.rawValue)
-                    .font(.system(size: 12))
-                    .foregroundColor(isSelected ? .primary : .secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(isSelected
-                          ? Color.accentColor.opacity(0.1)
-                          : (isHovered ? Color(NSColor.labelColor).opacity(0.05) : Color.clear))
-            )
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .animation(.easeInOut(duration: 0.12), value: isSelected)
-        .animation(.easeInOut(duration: 0.12), value: isHovered)
-    }
-}
 
 // MARK: - 输出类型行
 private struct OutputTypeRow: View {

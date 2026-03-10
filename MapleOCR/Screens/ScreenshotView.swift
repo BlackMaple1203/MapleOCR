@@ -42,10 +42,6 @@ struct ScreenshotView: View {
     @StateObject private var engine = ScreenshotEngine.shared
     private let overlayManager = ScreenshotOverlayManager()
 
-    // ── Toast ──
-    @State private var toastMessage: String?
-    @State private var toastIsSuccess = true
-
     enum ScreenshotTab: String { case settings = "设置", results = "记录" }
     enum MissionState { case none, running }
 
@@ -79,13 +75,15 @@ struct ScreenshotView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .topTrailing) {
-            if let msg = toastMessage {
-                toastView(msg, isSuccess: toastIsSuccess)
-                    .padding(16)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
+            ToastOverlay()
+                .environmentObject(ToastManager.shared)
         }
-        .animation(.easeInOut(duration: 0.3), value: toastMessage)
+        .onReceive(NotificationCenter.default.publisher(for: .triggerScreenshotOCR)) { _ in
+            startScreenshot()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .triggerPasteOCR)) { _ in
+            pasteFromClipboard()
+        }
     }
 
     // MARK: - 顶部工具栏
@@ -197,15 +195,6 @@ struct ScreenshotView: View {
                         .font(.callout)
                         .foregroundColor(.secondary)
                 }
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(
-                            isDraggingOver ? Color.accentColor : Color(NSColor.separatorColor),
-                            style: StrokeStyle(lineWidth: isDraggingOver ? 2 : 1, dash: [6])
-                        )
-                        .padding(24)
-                        .animation(.easeInOut(duration: 0.2), value: isDraggingOver)
-                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -620,17 +609,6 @@ struct ScreenshotView: View {
         showToast("已复制 \(ocrResults.count) 条结果", isSuccess: true)
     }
 
-    // MARK: - 通知
-
-    private func showToast(_ message: String, isSuccess: Bool) {
-        toastMessage = message
-        toastIsSuccess = isSuccess
-        Task {
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
-            withAnimation { toastMessage = nil }
-        }
-    }
-
     // MARK: - 辅助组件
 
     private func tabButton(_ title: String, tag: ScreenshotTab) -> some View {
@@ -700,27 +678,6 @@ struct ScreenshotView: View {
         .controlSize(.small)
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
-    }
-
-    private func toastView(_ message: String, isSuccess: Bool) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(isSuccess ? .green : .orange)
-                .padding(.top, 1)
-            Text(message)
-                .font(.system(size: 12.5))
-                .foregroundColor(.primary)
-                .lineLimit(3)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(maxWidth: 300, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.regularMaterial)
-                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
-        )
     }
 
     private func formatTimestamp(_ date: Date) -> String {

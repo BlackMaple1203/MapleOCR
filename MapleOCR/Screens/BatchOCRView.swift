@@ -84,6 +84,15 @@ enum BatchOutputFormat: String, CaseIterable, Identifiable {
         case .jsonl: return "jsonl"
         }
     }
+    var icon: String {
+        switch self {
+        case .txt:      return "doc.text"
+        case .txtPlain: return "text.alignleft"
+        case .md:       return "text.badge.checkmark"
+        case .csv:      return "tablecells"
+        case .jsonl:    return "curlybraces"
+        }
+    }
 }
 
 // MARK: - 保存目录模式
@@ -130,10 +139,6 @@ struct BatchOCRView: View {
     @State private var fileNameFormat = "MapleOCR_%date"
     @State private var copyOnComplete = false
 
-    // ── Toast ──
-    @State private var toastMessage: String?
-    @State private var toastIsSuccess = true
-
     // ── 引擎 ──
     private let engine = ScreenshotEngine.shared
 
@@ -150,70 +155,170 @@ struct BatchOCRView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // ── 左侧：文件列表 ──
+
+            // ── 左侧：文件列表 ──────────────────────────────
             leftPanel
-                .frame(width: 300)
+                .frame(width: 280)
                 .background(Color(NSColor.windowBackgroundColor))
+                .overlay(
+                    Rectangle()
+                        .frame(width: 1)
+                        .foregroundColor(Color(NSColor.separatorColor)),
+                    alignment: .trailing
+                )
+                .onDrop(of: [.image, .fileURL], isTargeted: $isDraggingOver) { providers in
+                    handleDrop(providers: providers)
+                    return true
+                }
 
-            Divider()
-
-            // ── 右侧：设置 & 记录 ──
-            rightPanel
-                .frame(maxWidth: .infinity)
-                .background(Color(NSColor.controlBackgroundColor))
+            // ── 右侧：控制 + 标签面板 ──────────────────────
+            VStack(spacing: 0) {
+                taskControlBar
+                Divider()
+                rightTabPanel
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(NSColor.controlBackgroundColor))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .topTrailing) {
-            if let msg = toastMessage {
-                toastView(msg, isSuccess: toastIsSuccess)
-                    .padding(16)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
+            ToastOverlay()
+                .environmentObject(ToastManager.shared)
         }
-        .animation(.easeInOut(duration: 0.3), value: toastMessage)
+        .onReceive(NotificationCenter.default.publisher(for: .triggerOpenFileBatch)) { _ in
+            openFilePicker()
+        }
     }
 
     // MARK: - 左侧面板
 
     private var leftPanel: some View {
         VStack(spacing: 0) {
-            // 顶部：任务控制栏
-            missionControlBar
+            Text("图片列表")
+                .font(.headline)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+
             Divider()
 
             // 文件列表 / 空态
-            if images.isEmpty {
-                dropZone
-            } else {
-                fileListView
+            if images.isEmpty { dropZone }
+            else {
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        ForEach(images) { item in
+                            BatchImageRow(
+                                item: item,
+                                isSelected: selectedID == item.id,
+                                isLocked: missionState != .idle
+                            ) {
+                                selectedID = item.id
+                                if let _ = ocrResults.first(where: { $0.imageURL == item.url }) {
+                                    selectedTab = .results
+                                }
+                            } onDelete: {
+                                remove(item)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 6)
+                }
+
+                // 进度条
+                if missionState != .idle {
+                    VStack(spacing: 4) {
+                        ProgressView(value: Double(processedCount), total: Double(max(1, images.count)))
+                            .progressViewStyle(.linear)
+                            .padding(.horizontal, 12)
+                        HStack {
+                            Text("已处理 \(processedCount) / \(images.count)")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                            if errorCount > 0 {
+                                Text("失败 \(errorCount)")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.red)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+
+                Divider()
+
+                // 底部操作栏
+                HStack(spacing: 8) {
+                    Button("添加图片") { openFilePicker() }
+                        .buttonStyle(.bordered)
+                        .disabled(missionState != .idle)
+                    Spacer()
+                    Button("清空") {
+                        clearAll()
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundColor(.red)
+                    .disabled(missionState != .idle || images.isEmpty)
+                }
+                .padding(10)
             }
-
-            Divider()
-
-            // 底部：添加/清空/开始按钮
-            bottomBar
-        }
-        .onDrop(of: [.image, .fileURL], isTargeted: $isDraggingOver) { providers in
-            handleDrop(providers: providers)
-            return true
         }
     }
 
     // MARK: - 任务控制栏
 
-    private var missionControlBar: some View {
-        HStack(spacing: 8) {
+    private var taskControlBar: some View {
+        HStack(spacing: 10) {
+            // 当前任务进度
+            if missionState != .idle {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(missionState == .paused ? "已暂停" : "识别中…")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        ProgressView(value: Double(processedCount),
+                                     total: max(Double(images.count), 1))
+                            .progressViewStyle(.linear)
+                            .frame(width: 140)
+                        HStack(spacing: 4) {
+                            Text("\(processedCount) / \(images.count) 张")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            if let start = startTime, missionState == .running {
+                                let elapsed = Date().timeIntervalSince(start)
+                                Text("· \(formatDuration(elapsed))")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                if processedCount > 0 {
+                                    let remaining = elapsed / Double(processedCount)
+                                        * Double(images.count - processedCount)
+                                    Text("· 剩余 ~\(formatDuration(remaining))")
+                                        .font(.caption2)
+                                        .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                                }
+                            }
+                        }
+                    }
+                    .padding(.leading, 4)
+                }
+            } else {
+                Text(images.isEmpty
+                     ? "尚未添加图片"
+                     : "\(images.count) 张图片")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            // 控制按钮组
             switch missionState {
             case .idle:
                 Button {
                     startOCR()
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 10))
-                        Text("开始任务")
-                            .font(.system(size: 12))
-                    }
+                    Label("开始任务", systemImage: "play.fill")
+                        .font(.system(size: 12, weight: .semibold))
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(images.isEmpty)
@@ -222,227 +327,75 @@ struct BatchOCRView: View {
                 Button {
                     pauseOCR()
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "pause.fill")
-                            .font(.system(size: 10))
-                        Text("暂停")
-                            .font(.system(size: 12))
-                    }
+                    Label("暂停", systemImage: "pause.fill")
+                        .font(.system(size: 12))
                 }
                 .buttonStyle(.bordered)
 
                 Button {
                     stopOCR()
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 10))
-                        Text("停止")
-                            .font(.system(size: 12))
-                    }
-                    .foregroundColor(.red)
+                    Label("停止", systemImage: "stop.fill")
+                        .font(.system(size: 12))
                 }
                 .buttonStyle(.bordered)
+                .foregroundColor(.red)
 
             case .paused:
                 Button {
                     resumeOCR()
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 10))
-                        Text("继续")
-                            .font(.system(size: 12))
-                    }
+                    Label("继续", systemImage: "play.fill")
+                        .font(.system(size: 12, weight: .semibold))
                 }
                 .buttonStyle(.borderedProminent)
 
                 Button {
                     stopOCR()
                 } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 10))
-                        Text("停止")
-                            .font(.system(size: 12))
-                    }
-                    .foregroundColor(.red)
+                    Label("停止", systemImage: "stop.fill")
+                        .font(.system(size: 12))
                 }
                 .buttonStyle(.bordered)
-            }
-
-            Spacer()
-
-            // 进度信息
-            if missionState != .idle {
-                progressInfo
+                .foregroundColor(.red)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 
-    // MARK: - 进度信息
+    // MARK: - 右侧标签面板
 
-    private var progressInfo: some View {
-        HStack(spacing: 8) {
-            // 进度数字
-            Text("\(processedCount) / \(images.count)")
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundColor(.primary)
-
-            // 已用时间
-            Text(formatDuration(elapsedSeconds))
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(.secondary)
-
-            // 预计剩余
-            if processedCount > 0 {
-                let avgTime = elapsedSeconds / Double(processedCount)
-                let remaining = avgTime * Double(images.count - processedCount)
-                Text("剩余 \(formatDuration(remaining))")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-            }
-
-            // 速度
-            if elapsedSeconds > 0 {
-                let speed = Double(processedCount) / elapsedSeconds
-                Text(String(format: "%.1f张/s", speed))
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-            }
-
-            if missionState == .paused {
-                Text("已暂停")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.orange)
-            }
-        }
-    }
-
-    // MARK: - 文件列表
-
-    private var fileListView: some View {
+    private var rightTabPanel: some View {
         VStack(spacing: 0) {
-            // 表头
+            // 标签切换
             HStack(spacing: 0) {
-                Text("文件名")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text("用时")
-                    .frame(width: 48, alignment: .trailing)
-                Text("状态")
-                    .frame(width: 56, alignment: .trailing)
-            }
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-
-            Divider()
-
-            ScrollView {
-                LazyVStack(spacing: 1) {
-                    ForEach(images) { item in
-                        BatchImageRow(
-                            item: item,
-                            isSelected: selectedID == item.id
-                        ) {
-                            selectedID = item.id
-                            // 点击文件时，在结果面板中找到对应结果
-                            if let result = ocrResults.first(where: { $0.imageURL == item.url }) {
-                                selectedTab = .results
-                                _ = result // 滚动到对应结果由 UI 处理
-                            }
+                ForEach(["设置", "记录"].indices, id: \.self) { i in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            selectedTab = i == 0 ? .settings : .results
                         }
+                    } label: {
+                        Text(["设置", "记录"][i])
+                            .font(.system(size: 12, weight: (selectedTab == .settings && i == 0) || (selectedTab == .results && i == 1) ? .semibold : .regular))
+                            .foregroundColor((selectedTab == .settings && i == 0) || (selectedTab == .results && i == 1) ? .primary : .secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(
+                                (selectedTab == .settings && i == 0) || (selectedTab == .results && i == 1)
+                                    ? Color(NSColor.controlBackgroundColor)
+                                    : Color.clear
+                            )
+                            .contentShape(Rectangle())
                     }
-                }
-                .padding(.vertical, 4)
-            }
-
-            // 进度条
-            if missionState != .idle {
-                VStack(spacing: 4) {
-                    ProgressView(value: Double(processedCount), total: Double(max(1, images.count)))
-                        .progressViewStyle(.linear)
-                        .padding(.horizontal, 12)
-                    HStack {
-                        Text("已处理 \(processedCount) / \(images.count)")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                        if errorCount > 0 {
-                            Text("失败 \(errorCount)")
-                                .font(.system(size: 10))
-                                .foregroundColor(.red)
-                        }
-                    }
-                }
-                .padding(.vertical, 6)
-            }
-        }
-    }
-
-    // MARK: - 底部按钮栏
-
-    private var bottomBar: some View {
-        HStack(spacing: 6) {
-            Button {
-                openFilePicker()
-            } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 10))
-                    Text("添加")
-                        .font(.system(size: 12))
+                    .buttonStyle(.plain)
                 }
             }
-            .buttonStyle(.bordered)
-            .disabled(missionState != .idle)
-
-            Button {
-                openFolderPicker()
-            } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "folder.badge.plus")
-                        .font(.system(size: 10))
-                    Text("文件夹")
-                        .font(.system(size: 12))
-                }
-            }
-            .buttonStyle(.bordered)
-            .disabled(missionState != .idle)
-
-            Spacer()
-
-            Text("\(images.count) 个文件")
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
-
-            Button("清空") {
-                clearAll()
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: 11))
-            .foregroundColor(.red)
-            .disabled(missionState != .idle || images.isEmpty)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-    }
-
-    // MARK: - 右侧面板
-
-    private var rightPanel: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                batchTabButton("设置", tag: .settings)
-                batchTabButton("记录 \(ocrResults.isEmpty ? "" : "(\(ocrResults.count))")", tag: .results)
-                Spacer()
-            }
-            .padding(.horizontal, 8)
-            .padding(.top, 8)
-
-            Divider()
+            .background(Color(NSColor.windowBackgroundColor).opacity(0.6))
+            .overlay(
+                Rectangle().frame(height: 1).foregroundColor(Color(NSColor.separatorColor)),
+                alignment: .bottom
+            )
 
             if selectedTab == .settings {
                 batchSettingsPanel
@@ -457,31 +410,17 @@ struct BatchOCRView: View {
     private var dropZone: some View {
         VStack(spacing: 12) {
             Spacer()
-            Image(systemName: isDraggingOver ? "tray.and.arrow.down.fill" : "photo.stack")
-                .font(.system(size: 40, weight: .light))
+            Image(systemName: isDraggingOver ? "tray.and.arrow.down.fill" : "arrow.down.doc")
+                .font(.system(size: 38, weight: .light))
                 .foregroundColor((isDraggingOver || isHoveringDropZone) ? .accentColor : .secondary)
                 .animation(.easeInOut(duration: 0.18), value: isDraggingOver)
                 .animation(.easeInOut(duration: 0.18), value: isHoveringDropZone)
-            Text("拖入图片、文件夹，或点击添加")
+            Text("拖入或上传图片")
                 .font(.callout)
                 .foregroundColor(.secondary)
-            HStack(spacing: 12) {
-                Button {
-                    openFilePicker()
-                } label: {
-                    Label("选择文件", systemImage: "photo.on.rectangle")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.bordered)
-
-                Button {
-                    openFolderPicker()
-                } label: {
-                    Label("选择文件夹", systemImage: "folder")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.bordered)
-            }
+            Text("支持 PNG · JPG · TIFF · BMP · HEIC")
+                .font(.caption)
+                .foregroundColor(Color(NSColor.tertiaryLabelColor))
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -492,6 +431,12 @@ struct BatchOCRView: View {
                 .animation(.easeInOut(duration: 0.18), value: isHoveringDropZone)
                 .animation(.easeInOut(duration: 0.18), value: isDraggingOver)
         )
+        .contentShape(Rectangle())
+        .onTapGesture { openFilePicker() }
+        .onHover { inside in
+            isHoveringDropZone = inside
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .stroke(
@@ -546,20 +491,19 @@ struct BatchOCRView: View {
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
 
-                            FlowLayout(spacing: 6) {
+                            HStack(spacing: 4) {
                                 ForEach(BatchOutputFormat.allCases) { fmt in
-                                    Toggle(isOn: Binding(
-                                        get: { outputFormats.contains(fmt) },
-                                        set: { on in
-                                            if on { outputFormats.insert(fmt) }
-                                            else { outputFormats.remove(fmt) }
+                                    SelectionRow(
+                                        label: fmt.rawValue,
+                                        icon: fmt.icon,
+                                        isSelected: outputFormats.contains(fmt)
+                                    ) {
+                                        if outputFormats.contains(fmt) {
+                                            outputFormats.remove(fmt)
+                                        } else {
+                                            outputFormats.insert(fmt)
                                         }
-                                    )) {
-                                        Text(fmt.rawValue)
-                                            .font(.system(size: 11))
                                     }
-                                    .toggleStyle(.button)
-                                    .controlSize(.small)
                                 }
                             }
                         }
@@ -865,9 +809,9 @@ struct BatchOCRView: View {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
         panel.canChooseFiles = true
-        panel.canChooseDirectories = false
+        panel.canChooseDirectories = true
         panel.allowedContentTypes = supportedImageTypes
-        panel.message = "选择需要识别的图片"
+        panel.message = "选择图片或文件夹"
         if panel.runModal() == .OK {
             addURLs(panel.urls)
         }
@@ -943,10 +887,17 @@ struct BatchOCRView: View {
     private func clearAll() {
         images.removeAll()
         ocrResults.removeAll()
+        selectedID = nil
         processedCount = 0
         errorCount = 0
         elapsedSeconds = 0
         startTime = nil
+    }
+
+    private func remove(_ item: BatchImageItem) {
+        images.removeAll { $0.id == item.id }
+        if selectedID == item.id { selectedID = images.first?.id }
+        if images.isEmpty { ocrResults = [] }
     }
 
     /// 处理拖入
@@ -1041,35 +992,7 @@ struct BatchOCRView: View {
         }
     }
 
-    // MARK: - Toast
-
-    private func showToast(_ message: String, isSuccess: Bool) {
-        toastMessage = message
-        toastIsSuccess = isSuccess
-        Task {
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            withAnimation { toastMessage = nil }
-        }
-    }
-
     // MARK: - 辅助组件
-
-    private func batchTabButton(_ title: String, tag: BatchTab) -> some View {
-        Button(action: { selectedTab = tag }) {
-            Text(title)
-                .font(.system(size: 12, weight: selectedTab == tag ? .semibold : .regular))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    selectedTab == tag
-                        ? Color.accentColor.opacity(0.12)
-                        : Color.clear
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
-        .foregroundColor(selectedTab == tag ? .accentColor : .primary)
-    }
 
     private func batchSettingsSection<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1098,27 +1021,6 @@ struct BatchOCRView: View {
         .controlSize(.small)
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
-    }
-
-    private func toastView(_ message: String, isSuccess: Bool) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(isSuccess ? .green : .orange)
-                .padding(.top, 1)
-            Text(message)
-                .font(.system(size: 12.5))
-                .foregroundColor(.primary)
-                .lineLimit(3)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(maxWidth: 340, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.regularMaterial)
-                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
-        )
     }
 
     // MARK: - 格式化工具
@@ -1268,71 +1170,73 @@ struct FlowLayout: Layout {
 private struct BatchImageRow: View {
     let item: BatchImageItem
     let isSelected: Bool
+    let isLocked: Bool
     let onSelect: () -> Void
+    let onDelete: () -> Void
 
     @State private var isHovered = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            // 状态图标
-            Group {
-                switch item.status {
-                case .processing:
-                    ProgressView()
-                        .scaleEffect(0.5)
-                        .frame(width: 13, height: 13)
-                default:
-                    Image(systemName: statusIcon)
-                        .font(.system(size: 11))
-                        .foregroundColor(item.status.color)
+        HStack(spacing: 8) {
+            // 文件图标
+            Image(systemName: "photo")
+                .font(.system(size: 16))
+                .foregroundColor(isSelected ? .accentColor : .secondary)
+                .frame(width: 22)
+
+            // 文件信息
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name)
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                HStack(spacing: 4) {
+                    if !item.duration.isEmpty {
+                        Text(item.duration)
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    if item.status != .waiting {
+                        Text(item.status.label)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(item.status.color)
+                    } else {
+                        Text(item.url.deletingLastPathComponent().lastPathComponent)
+                            .font(.system(size: 10))
+                            .foregroundColor(Color(NSColor.tertiaryLabelColor))
+                            .lineLimit(1)
+                    }
                 }
             }
-            .frame(width: 22)
-            .padding(.leading, 8)
 
-            Text(item.name)
-                .font(.system(size: 12))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 6)
+            Spacer()
 
-            if !item.duration.isEmpty {
-                Text(item.duration)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(.secondary)
-                    .frame(width: 44, alignment: .trailing)
+            // 删除按钮（悬浮时显示）
+            if isHovered && !isLocked {
+                Button {
+                    onDelete()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity)
             }
-
-            Text(item.status == .waiting ? "" : item.status.label)
-                .font(.system(size: 11))
-                .foregroundColor(item.status.color)
-                .frame(width: 42, alignment: .trailing)
-                .padding(.trailing, 8)
         }
-        .frame(height: 28)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
         .background(
-            RoundedRectangle(cornerRadius: 5)
+            RoundedRectangle(cornerRadius: 7)
                 .fill(
                     isSelected
-                        ? Color.accentColor.opacity(0.13)
-                        : (isHovered ? Color(NSColor.labelColor).opacity(0.05) : Color.clear)
+                        ? Color.accentColor.opacity(0.15)
+                        : (isHovered ? Color(NSColor.labelColor).opacity(0.06) : Color.clear)
                 )
         )
         .contentShape(Rectangle())
         .onTapGesture { onSelect() }
         .onHover { isHovered = $0 }
-        .padding(.horizontal, 6)
-    }
-
-    private var statusIcon: String {
-        switch item.status {
-        case .waiting:    return "clock"
-        case .processing: return "arrow.triangle.2.circlepath"
-        case .success:    return "checkmark.circle.fill"
-        case .failed:     return "xmark.circle.fill"
-        case .empty:      return "minus.circle"
-        }
+        .animation(.easeInOut(duration: 0.12), value: isHovered)
     }
 }
 

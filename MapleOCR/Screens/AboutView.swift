@@ -31,10 +31,6 @@ struct AboutView: View {
                         Text("MapleOCR")
                             .font(.system(size: 24, weight: .bold))
 
-                        Text("开源 · 免费 · 离线 OCR 工具")
-                            .font(.callout)
-                            .foregroundColor(.secondary)
-
                         Text("版本 1.0.0")
                             .font(.system(size: 12))
                             .foregroundColor(Color(NSColor.tertiaryLabelColor))

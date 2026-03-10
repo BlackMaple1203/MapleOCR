@@ -37,10 +37,6 @@ struct QRCodeView: View {
     @State private var copyOnScan = true
     @State private var popWindow = true
 
-    // ── Toast ──
-    @State private var toastMessage: String?
-    @State private var toastIsSuccess = true
-
     // ── 引擎 ──
     private let engine = QRCodeEngine.shared
     private let overlayManager = ScreenshotOverlayManager()
@@ -77,13 +73,12 @@ struct QRCodeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .topTrailing) {
-            if let msg = toastMessage {
-                toastView(msg, isSuccess: toastIsSuccess)
-                    .padding(16)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
+            ToastOverlay()
+                .environmentObject(ToastManager.shared)
         }
-        .animation(.easeInOut(duration: 0.3), value: toastMessage)
+        .onReceive(NotificationCenter.default.publisher(for: .triggerQRScan)) { _ in
+            startScreenshot()
+        }
     }
 
     // MARK: - 顶部工具栏
@@ -107,14 +102,10 @@ struct QRCodeView: View {
             Spacer()
 
             if currentImage != nil || generatedImage != nil {
-                HStack(spacing: 2) {
-                    Toggle("框选", isOn: $showBoxOverlay)
-                        .toggleStyle(.checkbox)
-                        .font(.system(size: 11))
-                        .help("显示/隐藏识别框")
-                    toolbarIconBtn("square.and.arrow.down") { saveCurrentImage() }
-                        .help("保存图片")
-                }
+                Toggle("框选", isOn: $showBoxOverlay)
+                    .toggleStyle(.checkbox)
+                    .font(.system(size: 11))
+                    .help("显示/隐藏识别框")
             }
         }
         .padding(.horizontal, 12)
@@ -191,14 +182,6 @@ struct QRCodeView: View {
                         .font(.callout)
                         .foregroundColor(.secondary)
                 }
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(
-                            isDraggingOver ? Color.accentColor : Color(NSColor.separatorColor),
-                            style: StrokeStyle(lineWidth: isDraggingOver ? 2 : 1, dash: [6])
-                        )
-                        .padding(24)
-                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -269,25 +252,6 @@ struct QRCodeView: View {
     private var scanPanel: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
-                sectionHeader("扫码操作")
-
-                VStack(spacing: 8) {
-                    scanOperationButton(icon: "camera.viewfinder", title: "屏幕截图", subtitle: "⌃⌥Q") {
-                        startScreenshot()
-                    }
-                    scanOperationButton(icon: "doc.on.clipboard", title: "粘贴图片", subtitle: "⌃⌥W") {
-                        pasteFromClipboard()
-                    }
-                    scanOperationButton(icon: "photo", title: "从文件导入") {
-                        openImageFile()
-                    }
-                }
-                .padding(.horizontal, 12)
-
-                Divider()
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-
                 sectionHeader("支持的格式")
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 80))], spacing: 6) {
                     ForEach(["QR Code","Aztec","PDF417","Code128","Code39","EAN-13","EAN-8","DataMatrix"], id: \.self) { fmt in
@@ -662,17 +626,6 @@ struct QRCodeView: View {
         }
     }
 
-    // MARK: - 通知
-
-    private func showToast(_ message: String, isSuccess: Bool) {
-        toastMessage = message
-        toastIsSuccess = isSuccess
-        Task {
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
-            withAnimation { toastMessage = nil }
-        }
-    }
-
     // MARK: - 辅助组件
 
     private func qrTabButton(_ title: String, tag: QRTab) -> some View {
@@ -771,27 +724,6 @@ struct QRCodeView: View {
         .controlSize(.small)
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
-    }
-
-    private func toastView(_ message: String, isSuccess: Bool) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: isSuccess ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(isSuccess ? .green : .orange)
-                .padding(.top, 1)
-            Text(message)
-                .font(.system(size: 12.5))
-                .foregroundColor(.primary)
-                .lineLimit(3)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(maxWidth: 300, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.regularMaterial)
-                .shadow(color: .black.opacity(0.18), radius: 10, x: 0, y: 4)
-        )
     }
 
     private func formatTimestamp(_ date: Date) -> String {

@@ -11,6 +11,7 @@ import CoreGraphics
 import ScreenCaptureKit
 import UniformTypeIdentifiers
 import Vision
+import SwiftUI
 
 // MARK: - OCR 结果
 
@@ -342,5 +343,54 @@ final class ScreenshotEngine: ObservableObject {
         }
         paragraphs.append(currentParagraph)
         return paragraphs.joined(separator: "\n\n")
+    }
+}
+
+// MARK: - 静默截图处理器
+
+/// 触发截图 → OCR → 复制到剪贴板，全程不弹出主窗口
+@MainActor
+final class SilentScreenshotHandler {
+    static let shared = SilentScreenshotHandler()
+
+    private let overlayManager = ScreenshotOverlayManager()
+    private var hudPanel: NSPanel?
+
+    func capture(mode: SelectionMode = .drag) {
+        overlayManager.startCapture(mode: mode, hideMainWindow: false) { [weak self] image in
+            guard let self, let image else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let result = await ScreenshotEngine.shared.performOCR(on: image)
+                switch result.code {
+                case 100:
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(result.text, forType: .string)
+                    self.showHUD("已复制 \(result.text.count) 个字符", isSuccess: true)
+                case 101:
+                    self.showHUD("未识别到文字", isSuccess: false)
+                default:
+                    self.showHUD("识别失败", isSuccess: false)
+                }
+            }
+        }
+    }
+
+    private func showHUD(_ message: String, isSuccess: Bool) {
+        hudPanel?.close()
+        hudPanel = nil
+
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 52),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = .floating
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.ignoresMouseEvents = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     }
 }
