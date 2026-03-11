@@ -35,10 +35,9 @@ final class ScreenshotOverlayManager {
     func startCapture(
         mode: SelectionMode,
         hideMainWindow: Bool = true,
-        hideDelay: TimeInterval = 0.2,
+        hideDelay: TimeInterval = 0,
         completion: @escaping CompletionHandler
     ) {
-        print("[DEBUG][ScreenshotOverlay] startCapture() - 模式: \(mode.rawValue)，隐藏窗口: \(hideMainWindow)，延迟: \(hideDelay)s")
         self.completion = completion
 
         // 隐藏主窗口（先保存引用，orderOut 后 NSApp.mainWindow 会变 nil）
@@ -54,7 +53,6 @@ final class ScreenshotOverlayManager {
     }
 
     private func captureAndShowOverlays(mode: SelectionMode) {
-        print("[DEBUG][ScreenshotOverlay] captureAndShowOverlays() - 开始截取所有屏幕")
         fullScreenImages.removeAll()
         overlayWindows.removeAll()
 
@@ -108,7 +106,6 @@ final class ScreenshotOverlayManager {
     }
 
     private func handleSelection(rect: CGRect?, screen: NSScreen, displayID: CGDirectDisplayID) {
-        print("[DEBUG][ScreenshotOverlay] handleSelection() - 选区: \(String(describing: rect))，屏幕: \(screen.localizedName)")
         // 延迟到下一个 run loop，避免在鼠标事件回调栈中销毁窗口导致崩溃
         DispatchQueue.main.async { [self] in
             self._handleSelectionImpl(rect: rect, screen: screen, displayID: displayID)
@@ -116,8 +113,6 @@ final class ScreenshotOverlayManager {
     }
 
     private func _handleSelectionImpl(rect: CGRect?, screen: NSScreen, displayID: CGDirectDisplayID) {
-        print("[DEBUG][ScreenshotOverlay] _handleSelectionImpl() - 处理选区: \(String(describing: rect))")
-
         // 必须在 dismissAll() 之前取出截图数据，否则 fullScreenImages 会被清空
         guard let rect = rect, rect.width > 1, rect.height > 1 else {
             dismissAll()
@@ -128,7 +123,6 @@ final class ScreenshotOverlayManager {
 
         // 获取对应屏幕的截图
         guard let pair = fullScreenImages.first(where: { $0.displayID == displayID }) else {
-            print("[DEBUG][ScreenshotOverlay] _handleSelectionImpl() - 找不到 displayID=\(displayID) 的截图数据")
             dismissAll()
             completion?(nil)
             showMainWindow()
@@ -171,7 +165,6 @@ final class ScreenshotOverlayManager {
     }
 
     private func cancelCapture() {
-        print("[DEBUG][ScreenshotOverlay] cancelCapture() - 用户取消截图")
         DispatchQueue.main.async { [self] in
             self.dismissAll()
             self.completion?(nil)
@@ -180,7 +173,6 @@ final class ScreenshotOverlayManager {
     }
 
     private func dismissAll() {
-        print("[DEBUG][ScreenshotOverlay] dismissAll() - 关闭 \(overlayWindows.count) 个覆盖窗口")
         for window in overlayWindows {
             window.close()
         }
@@ -189,7 +181,6 @@ final class ScreenshotOverlayManager {
     }
 
     private func showMainWindow() {
-        print("[DEBUG][ScreenshotOverlay] showMainWindow() - 恢复主窗口")
         let windowToRestore = savedMainWindow
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             windowToRestore?.makeKeyAndOrderFront(nil)
@@ -405,7 +396,6 @@ final class ScreenshotOverlayNSView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        print("[DEBUG][ScreenshotOverlayNSView] mouseDown() - 位置: \(point)，模式: \(mode.rawValue)")
 
         switch mode {
         case .drag:
@@ -434,9 +424,6 @@ final class ScreenshotOverlayNSView: NSView {
         let current = convert(event.locationInWindow, from: nil)
         currentMousePoint = current
         selectionRect = rectFromTwoPoints(start, current)
-        if let sel = selectionRect {
-            print("[DEBUG][ScreenshotOverlayNSView] mouseDragged() - 当前选区: \(Int(sel.width))×\(Int(sel.height))")
-        }
         needsDisplay = true
     }
 
@@ -448,7 +435,6 @@ final class ScreenshotOverlayNSView: NSView {
         if let start = dragStartPoint {
             selectionRect = rectFromTwoPoints(start, current)
         }
-        print("[DEBUG][ScreenshotOverlayNSView] mouseUp() - 拖动结束，选区: \(String(describing: selectionRect))")
         finishSelection()
     }
 
@@ -463,12 +449,10 @@ final class ScreenshotOverlayNSView: NSView {
     }
 
     override func rightMouseDown(with event: NSEvent) {
-        print("[DEBUG][ScreenshotOverlayNSView] rightMouseDown() - 右键取消截图")
         cancelSelection()
     }
 
     override func keyDown(with event: NSEvent) {
-        print("[DEBUG][ScreenshotOverlayNSView] keyDown() - 键码: \(event.keyCode)")
         if event.keyCode == 53 { // ESC
             cancelSelection()
         }
@@ -491,18 +475,15 @@ final class ScreenshotOverlayNSView: NSView {
 
     private func finishSelection() {
         guard let sel = selectionRect, sel.width > 2, sel.height > 2 else {
-            print("[DEBUG][ScreenshotOverlayNSView] finishSelection() - 选区太小，取消")
             cancelSelection()
             return
         }
         // 将视图坐标转换为屏幕坐标
         let screenRect = window?.convertToScreen(sel) ?? sel
-        print("[DEBUG][ScreenshotOverlayNSView] finishSelection() - 完成选区: \(Int(screenRect.width))×\(Int(screenRect.height))，位置: \(screenRect.origin)")
         onComplete(screenRect)
     }
 
     private func cancelSelection() {
-        print("[DEBUG][ScreenshotOverlayNSView] cancelSelection() - 取消选择")
         selectionRect = nil
         dragStartPoint = nil
         clickFirstPoint = nil

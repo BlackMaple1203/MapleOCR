@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		EA89B3D12F57D52000B847C3 /* ServiceManagement.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EA89B3D02F57D52000B847C3 /* ServiceManagement.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		EA89B3A32F57D51B00B847C3 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,7 @@
 		EA89B3952F57D51A00B847C3 /* MapleOCR.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MapleOCR.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EA89B3A22F57D51B00B847C3 /* MapleOCRTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MapleOCRTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		EA89B3AC2F57D51B00B847C3 /* MapleOCRUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MapleOCRUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EA89B3D02F57D52000B847C3 /* ServiceManagement.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ServiceManagement.framework; path = System/Library/Frameworks/ServiceManagement.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -52,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EA89B3D12F57D52000B847C3 /* ServiceManagement.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -79,6 +85,7 @@
 				EA89B3A52F57D51B00B847C3 /* MapleOCRTests */,
 				EA89B3AF2F57D51B00B847C3 /* MapleOCRUITests */,
 				EA89B3962F57D51A00B847C3 /* Products */,
+				EA89B3D02F57D52000B847C3 /* ServiceManagement.framework */,
 			);
 			sourceTree = "<group>";
 		};
@@ -410,7 +417,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = TonyChen.MapleOCR;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -444,7 +452,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = TonyChen.MapleOCR;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

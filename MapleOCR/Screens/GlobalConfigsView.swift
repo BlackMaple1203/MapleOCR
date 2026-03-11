@@ -10,8 +10,6 @@ enum ConfigGroup: String, CaseIterable, Identifiable {
     case ocr       = "OCR 引擎"
     case window    = "窗口与界面"
     case shortcut  = "快捷键"
-    case output    = "输出设置"
-    case notify    = "通知"
 
     var id: String { rawValue }
 
@@ -20,8 +18,6 @@ enum ConfigGroup: String, CaseIterable, Identifiable {
         case .ocr:      return "cpu"
         case .window:   return "macwindow"
         case .shortcut: return "command.square"
-        case .output:   return "doc.text"
-        case .notify:   return "bell"
         }
     }
 }
@@ -30,6 +26,7 @@ enum ConfigGroup: String, CaseIterable, Identifiable {
 struct GlobalConfigsView: View {
     @State private var selectedGroup: ConfigGroup = .ocr
     @ObservedObject private var shortcutSettings = ShortcutSettings.shared
+    @ObservedObject private var launchAtLoginManager = LaunchAtLoginManager.shared
 
     var body: some View {
         HStack(spacing: 0) {
@@ -101,6 +98,25 @@ struct GlobalConfigsView: View {
             ToastOverlay()
                 .environmentObject(ToastManager.shared)
         }
+        .onAppear {
+            applyAppTheme(theme)
+        }
+        .onChange(of: theme) { newValue in
+            applyAppTheme(newValue)
+        }
+    }
+
+    // MARK: - 主题应用
+
+    private func applyAppTheme(_ theme: String) {
+        switch theme {
+        case "浅色":
+            NSApp.appearance = NSAppearance(named: .aqua)
+        case "深色":
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        default:
+            NSApp.appearance = nil
+        }
     }
 
     // MARK: - 各分组内容
@@ -111,53 +127,41 @@ struct GlobalConfigsView: View {
         case .ocr:      ocrConfigSection
         case .window:   windowConfigSection
         case .shortcut: shortcutConfigSection
-        case .output:   outputConfigSection
-        case .notify:   notifyConfigSection
         }
     }
 
     // MARK: OCR 引擎
     @State private var ocrEngine = "Apple Vision"
-    @State private var ocrLanguage = "简体中文 + English"
-    @State private var ocrAccuracy = "均衡"
+    @State private var ocrLanguage = "中文 + English"
 
     private var ocrConfigSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             formSection("识别引擎") {
                 formPicker("引擎", selection: $ocrEngine, options: [
-                    "Apple Vision", "Tesseract"
+                    "Apple Vision"
                 ])
                 formPicker("主要语言", selection: $ocrLanguage, options: [
-                    "简体中文 + English", "繁體中文 + English",
-                    "English Only", "日本語", "한국어"
-                ])
-                formPicker("精度模式", selection: $ocrAccuracy, options: [
-                    "快速", "均衡", "精准"
+                    "中文 + English"
                 ])
             }
         }
     }
 
     // MARK: 窗口与界面
-    @State private var theme = "跟随系统"
-    @State private var language = "简体中文"
+    @AppStorage("appTheme") private var theme = "跟随系统"
     @State private var alwaysOnTop = false
     @State private var showInDock = true
     @State private var showInMenuBar = true
-    @State private var launchAtLogin = false
     @State private var hideOnClose = true
 
     private var windowConfigSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             formSection("外观") {
                 formPicker("主题", selection: $theme, options: ["跟随系统", "浅色", "深色"])
-                formPicker("语言", selection: $language, options: [
-                    "简体中文", "繁體中文", "English", "日本語"
-                ])
             }
 
             formSection("启动") {
-                formToggle("开机自动启动", icon: "power", isOn: $launchAtLogin)
+                formToggle("开机自动启动", icon: "power", isOn: $launchAtLoginManager.isEnabled)
             }
         }
     }
@@ -214,71 +218,6 @@ struct GlobalConfigsView: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 12)
-        }
-    }
-
-    // MARK: 输出设置
-    @State private var defaultFormat = "纯文本"
-    @State private var lineBreak = "保留换行"
-    @State private var addTimestamp = false
-    @State private var autoSave = false
-    @State private var savePath = "~/Documents/OCR Results"
-    @State private var saveFormat = "TXT"
-
-    private var outputConfigSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            formSection("文字处理") {
-                formPicker("默认输出格式", selection: $defaultFormat, options: [
-                    "纯文本", "Markdown", "自然段落", "竖排转横排"
-                ])
-                formPicker("换行处理", selection: $lineBreak, options: [
-                    "保留换行", "删除换行", "智能合并"
-                ])
-                formToggle("结果加入时间戳", icon: "clock", isOn: $addTimestamp)
-            }
-
-            formSection("自动保存") {
-                formToggle("自动保存识别结果", icon: "arrow.down.doc", isOn: $autoSave)
-                if autoSave {
-                    formRow("保存目录") {
-                        HStack {
-                            Text(savePath)
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Button("浏览") {}
-                                .buttonStyle(.bordered)
-                                .font(.system(size: 11))
-                        }
-                    }
-                    formPicker("保存格式", selection: $saveFormat, options: ["TXT", "Markdown", "CSV"])
-                }
-            }
-        }
-    }
-
-    // MARK: 通知
-    @State private var notifyStyle = "系统通知"
-    @State private var notifyOnSuccess = true
-    @State private var notifyOnEmpty = true
-    @State private var notifyOnError = true
-    @State private var notifySound = false
-
-    private var notifyConfigSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            formSection("通知样式") {
-                formPicker("通知方式", selection: $notifyStyle, options: [
-                    "系统通知", "应用内提示", "不通知"
-                ])
-                formToggle("通知音效", icon: "speaker.wave.2", isOn: $notifySound)
-            }
-
-            formSection("通知时机") {
-                formToggle("识别成功时通知", icon: "checkmark.circle", isOn: $notifyOnSuccess)
-                formToggle("无文字时通知", icon: "text.badge.minus", isOn: $notifyOnEmpty)
-                formToggle("识别失败时通知", icon: "exclamationmark.circle", isOn: $notifyOnError)
-            }
         }
     }
 

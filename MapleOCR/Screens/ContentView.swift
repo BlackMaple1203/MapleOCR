@@ -55,6 +55,7 @@ struct ContentView: View {
     private final class NavRef { var selection: SidebarItem = .screenshot }
     @State private var navRef = NavRef()
     @State private var eventMonitor: Any?
+    @State private var globalMonitor: Any?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -173,13 +174,29 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .triggerSilentScreenshotOCR)) { _ in
             SilentScreenshotHandler.shared.capture()
         }
-        .onAppear { installShortcutMonitor() }
+        .onAppear {
+            installShortcutMonitor()
+            installGlobalShortcutMonitor()
+        }
     }
 
     private var sidebarBg: Color {
         colorScheme == .dark
             ? Color(red: 0.105, green: 0.105, blue: 0.114)
             : Color(red: 0.900, green: 0.900, blue: 0.912)
+    }
+
+    // MARK: - 安装全局快捷键事件监听（app 不在前台时也生效）
+
+    private func installGlobalShortcutMonitor() {
+        let settings = ShortcutSettings.shared
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
+            if settings.silentScreenshot.matches(event) {
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .triggerSilentScreenshotOCR, object: nil)
+                }
+            }
+        }
     }
 
     // MARK: - 安装快捷键事件监听

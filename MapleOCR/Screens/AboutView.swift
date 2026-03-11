@@ -8,10 +8,14 @@ import SwiftUI
 struct AboutView: View {
     @State private var showEnvCopied = false
 
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0"
+    }
+
     private let links: [(String, String, String)] = [
-        ("Github", "star.fill", "https://github.com/hiroi-sora/Umi-OCR"),
-        ("问题反馈", "exclamationmark.bubble", "https://github.com/hiroi-sora/Umi-OCR/issues"),
-        ("更新日志", "clock.arrow.circlepath", "https://github.com/hiroi-sora/Umi-OCR/releases"),
+        ("Github", "star.fill", "https://github.com/BlackMaple1203/MapleOCR"),
+        ("问题反馈", "exclamationmark.bubble", "https://github.com/BlackMaple1203/MapleOCR/issues"),
+        ("更新日志", "clock.arrow.circlepath", "https://github.com/BlackMaple1203/MapleOCR/releases"),
     ]
 
     var body: some View {
@@ -31,7 +35,7 @@ struct AboutView: View {
                         Text("MapleOCR")
                             .font(.system(size: 24, weight: .bold))
 
-                        Text("版本 1.0.0")
+                        Text("版本 \(appVersion)")
                             .font(.system(size: 12))
                             .foregroundColor(Color(NSColor.tertiaryLabelColor))
                     }
@@ -76,7 +80,7 @@ struct AboutView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(.secondary)
 
-                        Text("本软件基于 MIT License 开源协议发布。\nOCR 引擎基于 Apple Vision Framework。")
+                        Text("MIT License")
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                             .lineSpacing(4)
@@ -107,7 +111,7 @@ struct AboutView: View {
                             envRow("系统版本", ProcessInfo.processInfo.operatingSystemVersionString)
                             envRow("架构", ProcessInfo.processInfo.processorCount > 0 ?
                                    "\(ProcessInfo.processInfo.processorCount) 核" : "Unknown")
-                            envRow("App 版本", "1.0.0")
+                            envRow("App 版本", appVersion)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(16)
@@ -139,7 +143,7 @@ struct AboutView: View {
 
     private func copyEnvInfo() {
         let info = """
-        App: MapleOCR 1.0.0
+        App: MapleOCR \(appVersion)
         OS: \(ProcessInfo.processInfo.operatingSystemVersionString)
         CPU Cores: \(ProcessInfo.processInfo.processorCount)
         """
