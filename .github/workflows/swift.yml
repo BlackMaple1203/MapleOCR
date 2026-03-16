@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build-and-test:
+  build:
     runs-on: macos-15
 
     steps:
@@ -16,13 +16,13 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
-      - name: List schemes
-        run: xcodebuild -list -project MapleOCR.xcodeproj
-
-      - name: Build
+      - name: Build without signing
         run: |
           xcodebuild \
             -project MapleOCR.xcodeproj \
             -scheme MapleOCR \
+            -configuration Debug \
             -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
             build
