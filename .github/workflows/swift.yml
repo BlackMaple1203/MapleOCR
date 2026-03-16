@@ -1,0 +1,37 @@
+name: Xcode Build and Test
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: List schemes
+        run: xcodebuild -list -project YourApp.xcodeproj
+
+      - name: Build
+        run: |
+          xcodebuild \
+            -project MapleOCR.xcodeproj \
+            -scheme YourSchemeName \
+            -destination 'platform=macOS' \
+            clean build
+
+      - name: Test
+        run: |
+          xcodebuild \
+            -project MapleOCR.xcodeproj \
+            -scheme YourSchemeName \
+            -destination 'platform=macOS' \
+            test
