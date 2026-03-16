@@ -10,6 +10,6 @@
 
 也可点击黏贴按钮读取剪贴板的图片：
 
-<img width="100%" alt="粘贴识别" src="src/video/paste.gif" />
+<img width="100%" alt="粘贴识别" src="src/video/screenshot-paste.gif" />
 
 ### 批量识别
