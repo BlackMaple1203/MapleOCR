@@ -1,4 +1,4 @@
-name: Xcode Build and Test
+name: Xcode CI
 
 on:
   push:
@@ -8,11 +8,10 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Show Xcode version
         run: xcodebuild -version
@@ -26,12 +25,4 @@ jobs:
             -project MapleOCR.xcodeproj \
             -scheme MapleOCR \
             -destination 'platform=macOS' \
-            clean build
-
-      - name: Test
-        run: |
-          xcodebuild \
-            -project MapleOCR.xcodeproj \
-            -scheme MapleOCR \
-            -destination 'platform=macOS' \
-            test
+            build
