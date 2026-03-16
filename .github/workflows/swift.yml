@@ -18,13 +18,13 @@ jobs:
         run: xcodebuild -version
 
       - name: List schemes
-        run: xcodebuild -list -project YourApp.xcodeproj
+        run: xcodebuild -list -project MapleOCR.xcodeproj
 
       - name: Build
         run: |
           xcodebuild \
             -project MapleOCR.xcodeproj \
-            -scheme YourSchemeName \
+            -scheme MapleOCR \
             -destination 'platform=macOS' \
             clean build
 
@@ -32,6 +32,6 @@ jobs:
         run: |
           xcodebuild \
             -project MapleOCR.xcodeproj \
-            -scheme YourSchemeName \
+            -scheme MapleOCR \
             -destination 'platform=macOS' \
             test
